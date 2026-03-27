@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Bridge Dashboard</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <div class="header"> 
+    <div class="header-left">
+      <img src="/static/bridge-logo.png" class="logo">
+    </div>
+
+    <div class="header-center">
+      <div class="dashboard-title">Bridge Markets Dashboard</div>
+    </div>
+
+    <div class="header-right">
+      <div id="clock"></div>
+      <div id="fullscreen-toggle" style="margin-left:15px; cursor:pointer; font-size:14px; opacity:0.7;">
+      ⛶
+    </div>
+    </div>
+  </div>
+
+  <div class="grid">
+
+    <!-- Q1 -->
+    <div class="quadrant" id="q1">
+      <div class="quad-inner">
+        <div class="quad-title">Gas and Electric</div>
+      </div>
+    </div>
+    <!-- Q2 -->
+    <div class="quadrant main" id="q2"> 
+      <div class="title-row"> 
+        <div class="q2-title">Market Snapshot</div> 
+        <h1 id="asset-name">SPY</h1> </div> 
+        <div id="price">$0.00</div> 
+        <div id="change">0.00%</div> </div>
+    <!-- Q3 -->
+    <div class="quadrant" id="q3">
+      <div class="quad-inner">
+
+        <!-- Q3 HEADER (Single Line Layout) -->
+        <div class="q3-header">
+
+          <!-- LEFT -->
+          <div class="q3-title">Event Watch</div>
+
+          <!-- CENTER -->
+          <div id="doughcon-indicator"></div>
+
+          <!-- RIGHT LEGEND BOX -->
+          <div class="doughcon-legend-box">
+            <div class="legend-item level-1">1</div>
+            <div class="legend-item level-2">2</div>
+            <div class="legend-item level-3">3</div>
+            <div class="legend-item level-4">4</div>
+            <div class="legend-item level-5">5</div>
+          </div>
+
+        </div>
+
+        <!-- EVENT CONTENT -->
+        <div id="event-watch-container">
+          <div id="event-watch-content"></div>
+        </div>
+
+      </div>
+    </div>
+    <!-- Q4 -->
+    <div class="quadrant" id="q4">
+      <div class="news-title">Latest Headlines</div>
+
+      <div id="news-container">
+        <div class="news-item" id="headline-1"></div>
+        <div class="news-item" id="headline-2"></div>
+        <div class="news-item" id="headline-3"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="/static/script.js"></script>
+</body>
+</html>
