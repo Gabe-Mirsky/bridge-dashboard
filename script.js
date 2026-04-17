@@ -35,6 +35,9 @@ let q1Mode = "gas";
 let electricPrevious = {};
 let electricInFlight = false;
 let q1TransitionInFlight = false;
+const Q1_FADE_MS = 350;
+let latestHenryHubHtml = "";
+let latestElectricHtml = "";
 
 /* =========================================================
    LAYOUT INITIALIZATION
@@ -207,12 +210,12 @@ function ensureQ1Shell(modeTitleText) {
       <div id="q1-shell" style="display:flex;flex-direction:column;height:100%;">
         <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;margin-bottom:10px;">
           <div class="quad-title" style="margin-bottom:0;justify-self:start;">
-            Gas / Electric
+            Power Markets
           </div>
-          <div id="q1-mode-title" style="font-size:20px;letter-spacing:2px;text-transform:uppercase;opacity:0.7;font-weight:500;justify-self:center;transition:opacity 0.35s ease;"></div>
+          <div id="q1-mode-title" style="font-size:20px;letter-spacing:2px;text-transform:uppercase;opacity:0.7;font-weight:500;justify-self:center;transition:opacity ${Q1_FADE_MS}ms ease;"></div>
           <div></div>
         </div>
-        <div id="q1-fade-content" style="display:flex;flex-direction:column;flex:1;opacity:1;transition:opacity 0.35s ease;"></div>
+        <div id="q1-fade-content" style="display:flex;flex-direction:column;flex:1;opacity:1;transition:opacity ${Q1_FADE_MS}ms ease;"></div>
       </div>
     `;
   }
@@ -344,7 +347,7 @@ async function updateElectric() {
     const content = ensureQ1Shell("Electric");
     if (!content) return;
 
-    content.innerHTML = `
+    let html = `
       <div style="height:1px;background:rgba(255,255,255,0.08);margin:12px 0 18px 0;"></div>
 
       <div style="
@@ -367,12 +370,7 @@ async function updateElectric() {
         <div style="text-align:center;">MTD Avg DA ($/MWh)</div>
         <div style="text-align:right;">MoM Change ($, %)</div>
       </div>
-
-      <div id="electric-rows" style="display:flex;flex-direction:column;justify-content:space-evenly;flex:1;"></div>
     `;
-
-    const rowsEl = document.getElementById("electric-rows");
-    if (!rowsEl) return;
 
     const res = await fetch("/electric", { cache: "no-store" });
     if (!res.ok) throw new Error("HTTP status " + res.status);
@@ -387,15 +385,17 @@ async function updateElectric() {
     }
 
     if (!data || !Array.isArray(data.markets) || data.markets.length === 0) {
-      rowsEl.innerHTML = `
+      html += `
         <div style="flex:1;display:flex;align-items:center;justify-content:center;opacity:0.65;font-size:18px;">
           Electric data unavailable
         </div>
       `;
+      latestElectricHtml = html;
+      content.innerHTML = html;
       return;
     }
 
-    let rows = "";
+    html += `<div style="display:flex;flex-direction:column;justify-content:space-evenly;flex:1;">`;
     data.markets.forEach(m => {
       const name = m?.name ?? "--";
       const price = Number(m?.price ?? 0);
@@ -434,7 +434,7 @@ async function updateElectric() {
       const deltaDollars = `$${Math.abs(change).toFixed(2)}`;
       const deltaPercent = `${Math.abs(percent).toFixed(2)}%`;
 
-      rows += `
+      html += `
         <div style="display:grid;grid-template-columns:repeat(4, minmax(0, 1fr));column-gap:18px;align-items:center;font-size:21px;padding:6px 4px;font-variant-numeric:tabular-nums;">
           <div style="font-weight:600;font-size:inherit;">${iso}</div>
           <div style="font-weight:600;font-size:inherit;">${hub}</div>
@@ -446,22 +446,213 @@ async function updateElectric() {
       `;
     });
 
-    rowsEl.innerHTML = rows;
+    html += `</div>`;
+    latestElectricHtml = html;
+    content.innerHTML = html;
 
   } catch (err) {
     console.log("Electric fetch failed:", err);
 
-    const rowsEl = document.getElementById("electric-rows");
-    if (rowsEl) {
-      rowsEl.innerHTML = `
+    const content = ensureQ1Shell("Electric");
+    if (content) {
+      const fallbackHtml = `
+        <div style="height:1px;background:rgba(255,255,255,0.08);margin:12px 0 18px 0;"></div>
         <div style="flex:1;display:flex;align-items:center;justify-content:center;opacity:0.65;font-size:18px;">
           Electric data unavailable
         </div>
       `;
+      latestElectricHtml = fallbackHtml;
+      content.innerHTML = fallbackHtml;
     }
   } finally {
     electricInFlight = false;
   }
+}
+
+async function buildHenryHubHtmlForRotation() {
+  if (latestHenryHubHtml) return latestHenryHubHtml;
+  const res = await fetch(HENRY_API, { cache: "no-store" });
+  const data = await res.json();
+
+  let html = `
+    <div style="
+        height:1px;
+        background:rgba(255,255,255,0.08);
+        margin:12px 0 18px 0;
+    "></div>
+  `;
+
+  if (data && Array.isArray(data.contracts) && data.contracts.length > 0) {
+    html += `
+      <div style="
+          display:grid;
+          grid-template-columns:repeat(3, minmax(0, 1fr));
+          column-gap:18px;
+          align-items:center;
+          font-size:14px;
+          font-weight:700;
+          letter-spacing:1px;
+          text-transform:uppercase;
+          opacity:0.9;
+          border-bottom:1px solid rgba(255,255,255,0.15);
+          padding-bottom:6px;
+          margin-bottom:8px;
+      ">
+        <div>Contract Month</div>
+        <div style="text-align:center;">Settle ($/MMBtu)</div>
+        <div style="text-align:right;">Daily Change ($, %)</div>
+      </div>
+      <div style="
+          display:flex;
+          flex-direction:column;
+          justify-content:space-evenly;
+          flex:1;
+      ">
+    `;
+
+    data.contracts.slice(0, 6).forEach(c => {
+      const price = Number(c?.price ?? 0);
+      const change = Number(c?.change ?? 0);
+      const percent = Number(c?.percent ?? 0);
+      const isUp = change >= 0;
+      const arrow = isUp ? "&#9650;" : "&#9660;";
+      const color = isUp ? "#00ff7f" : "#ff4c4c";
+
+      html += `
+        <div style="
+            display:grid;
+            grid-template-columns:repeat(3, minmax(0, 1fr));
+            column-gap:18px;
+            align-items:center;
+            font-size:21px;
+            padding:6px 4px;
+            font-variant-numeric:tabular-nums;
+        ">
+            <div style="font-weight:600;">${c?.month ?? "--"}</div>
+            <div style="text-align:center; font-size:inherit;">$${price.toFixed(3)}</div>
+            <div style="text-align:right;color:${color};font-size:inherit;">
+              <span style="margin-right:6px;">${arrow}</span>
+              $${Math.abs(change).toFixed(3)} (${Math.abs(percent).toFixed(2)}%)
+            </div>
+        </div>
+      `;
+    });
+
+    html += `</div>`;
+  } else {
+    html += `
+      <div style="
+          flex:1;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          font-size:18px;
+          opacity:0.6;
+      ">
+        No gas data available
+      </div>
+    `;
+  }
+
+  latestHenryHubHtml = html;
+  return html;
+}
+
+async function buildElectricHtmlForRotation() {
+  if (latestElectricHtml) return latestElectricHtml;
+  let html = `
+    <div style="height:1px;background:rgba(255,255,255,0.08);margin:12px 0 18px 0;"></div>
+    <div style="
+        display:grid;
+        grid-template-columns:repeat(4, minmax(0, 1fr));
+        column-gap:18px;
+        align-items:center;
+        font-size:14px;
+        font-weight:700;
+        letter-spacing:1px;
+        text-transform:uppercase;
+        opacity:0.95;
+        color:#ffffff;
+        border-bottom:1px solid rgba(255,255,255,0.15);
+        padding-bottom:6px;
+        margin-bottom:8px;
+    ">
+      <div>ISO</div>
+      <div>Trading Hub</div>
+      <div style="text-align:center;">MTD Avg DA ($/MWh)</div>
+      <div style="text-align:right;">MoM Change ($, %)</div>
+    </div>
+  `;
+
+  const res = await fetch("/electric", { cache: "no-store" });
+  if (!res.ok) throw new Error("HTTP status " + res.status);
+  const data = await res.json();
+
+  if (!data || !Array.isArray(data.markets) || data.markets.length === 0) {
+    html += `
+      <div style="flex:1;display:flex;align-items:center;justify-content:center;opacity:0.65;font-size:18px;">
+        Electric data unavailable
+      </div>
+    `;
+    return html;
+  }
+
+  html += `<div style="display:flex;flex-direction:column;justify-content:space-evenly;flex:1;">`;
+  data.markets.forEach(m => {
+    const name = m?.name ?? "--";
+    const price = Number(m?.price ?? 0);
+    const change = Number(m?.change ?? 0);
+    const percent = Number(m?.percent ?? 0);
+    let iso = name;
+    let hub = "--";
+
+    if (typeof m?.iso === "string" && m.iso.trim()) iso = m.iso.trim();
+    if (typeof m?.hub === "string" && m.hub.trim()) hub = m.hub.trim();
+
+    if (hub === "--") {
+      const match = name.match(/^(.*?)\s*\((.*?)\)\s*$/);
+      if (match) {
+        iso = match[1].trim();
+        hub = match[2].trim();
+      }
+    }
+
+    if (hub === "--") {
+      if (/ISO[\s-]?NE|ISO New England/i.test(name)) {
+        iso = "ISO-NE";
+        hub = "Internal Hub";
+      } else if (/MISO/i.test(name)) {
+        iso = "MISO";
+        hub = "Illinois Hub";
+      } else if (/ERCOT/i.test(name)) {
+        iso = "ERCOT";
+        hub = "HB North";
+      }
+    }
+
+    const isUp = change >= 0;
+    const color = isUp ? "#00ff7f" : "#ff4c4c";
+    const arrow = isUp ? "â–²" : "â–¼";
+    const arrowHtml = isUp ? "&#9650;" : "&#9660;";
+    const arrowFixed = isUp ? "&#9650;" : "&#9660;";
+    const deltaDollars = `$${Math.abs(change).toFixed(2)}`;
+    const deltaPercent = `${Math.abs(percent).toFixed(2)}%`;
+
+    html += `
+      <div style="display:grid;grid-template-columns:repeat(4, minmax(0, 1fr));column-gap:18px;align-items:center;font-size:21px;padding:6px 4px;font-variant-numeric:tabular-nums;">
+        <div style="font-weight:600;font-size:inherit;">${iso}</div>
+        <div style="font-weight:600;font-size:inherit;">${hub}</div>
+        <div style="text-align:center;font-size:inherit;">$${price.toFixed(2)}</div>
+        <div style="text-align:right;color:${color};font-size:inherit;">
+          <span style="margin-right:6px;">${arrowFixed}</span>${deltaDollars} (${deltaPercent})
+        </div>
+      </div>
+    `;
+  });
+
+  html += `</div>`;
+  latestElectricHtml = html;
+  return html;
 }
 
 
@@ -533,21 +724,24 @@ async function rotateQ1() {
   if (q1TransitionInFlight) return;
   q1TransitionInFlight = true;
 
+  const nextMode = q1Mode === "gas" ? "electric" : "gas";
+  const nextModeTitleText = nextMode === "gas" ? "Henry Hub Futures" : "Electric";
+  const nextHtmlPromise = nextMode === "gas"
+    ? (latestHenryHubHtml ? Promise.resolve(latestHenryHubHtml) : buildHenryHubHtmlForRotation())
+    : (latestElectricHtml ? Promise.resolve(latestElectricHtml) : buildElectricHtmlForRotation());
+
   const currentModeTitle = document.getElementById("q1-mode-title");
   const currentContent = document.getElementById("q1-fade-content");
   if (currentModeTitle) currentModeTitle.style.opacity = "0";
   if (currentContent) {
     currentContent.style.opacity = "0";
-    await new Promise(resolve => setTimeout(resolve, 220));
+    await new Promise(resolve => setTimeout(resolve, Q1_FADE_MS));
   }
 
-  q1Mode = q1Mode === "gas" ? "electric" : "gas";
-
-  if (q1Mode === "gas") {
-    await updateHenryHub();
-  } else {
-    await updateElectric();
-  }
+  q1Mode = nextMode;
+  const nextHtml = await nextHtmlPromise;
+  const nextTarget = ensureQ1Shell(nextModeTitleText);
+  if (nextTarget) nextTarget.innerHTML = nextHtml;
 
   const nextModeTitle = document.getElementById("q1-mode-title");
   const nextContent = document.getElementById("q1-fade-content");
@@ -560,6 +754,12 @@ async function rotateQ1() {
     });
   } else if (nextModeTitle) {
     nextModeTitle.style.opacity = "0.7";
+  }
+
+  if (nextMode === "gas") {
+    updateHenryHub();
+  } else {
+    updateElectric();
   }
 
   q1TransitionInFlight = false;
@@ -901,11 +1101,146 @@ function renderEventWatch(data) {
 }
 
 /* =========================================================
+   Q3 - OIL / GAS SNAPSHOT
+   ========================================================= */
+
+const OIL_GAS_API = "/oil-gas-board";
+const OIL_GAS_REFRESH_INTERVAL = 60000; // 1 minute
+
+async function fetchOilGasBoard() {
+  try {
+    const res = await fetch(OIL_GAS_API, { cache: "no-store" });
+    const data = await res.json();
+    if (!data) {
+      renderOilGasBoardError("No data returned from /oil-gas-board.");
+      return;
+    }
+    if (data.error) {
+      renderOilGasBoardError(data.error);
+      return;
+    }
+    renderOilGasBoard(data);
+  } catch (e) {
+    console.log("Oil / Gas board fetch failed", e);
+    renderOilGasBoardError("Fetch to /oil-gas-board failed.");
+  }
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function changeClass(change) {
+  if (change == null || Number(change) === 0) return "flat";
+  return Number(change) > 0 ? "up" : "down";
+}
+
+function renderChangeText(change, changeText) {
+  const safeText = escapeHtml(String(changeText || "").replace(/^([+-])/, ""));
+
+  if (change == null || Number(change) === 0) {
+    return safeText;
+  }
+
+  const arrow = Number(change) > 0 ? "▲" : "▼";
+  return `<span style="margin-right:6px;">${arrow}</span>${safeText}`;
+}
+
+function renderEnergyRows(rows) {
+  return rows.map(row => `
+    <div class="energy-row">
+      <div class="energy-row-left">
+        <div class="energy-label">${escapeHtml(row.label)}</div>
+        <div class="energy-meta">${escapeHtml(row.meta || "").replace(/\s*\|\s*/g, "<br>")}</div>
+      </div>
+      <div class="energy-row-right">
+        <div class="energy-value">${escapeHtml(row.value)}</div>
+        <div class="energy-change ${changeClass(row.change)}">${renderChangeText(row.change, row.changeText)}</div>
+      </div>
+    </div>
+  `).join("");
+}
+
+function renderOilGasBoard(data) {
+  const container = document.getElementById("oil-gas-board");
+  if (!container) return;
+
+  const leftRows = Array.isArray(data.left_column) ? data.left_column : [];
+  const rightRows = Array.isArray(data.right_column) ? data.right_column : [];
+
+  container.innerHTML = `
+    <div class="energy-card energy-card-left">
+      <div class="energy-card-header">
+        <div class="energy-card-title">Retail Fuel Averages</div>
+        <div class="energy-card-note">Week over week</div>
+      </div>
+      <div class="energy-rows">
+        ${renderEnergyRows(leftRows)}
+      </div>
+    </div>
+    <div class="energy-card energy-card-right">
+      <div class="energy-card-header">
+        <div class="energy-card-title">Oil Futures</div>
+        <div class="energy-card-note">${escapeHtml(data.right_card_note || "Front Month")}</div>
+      </div>
+      <div class="energy-rows">
+        ${renderEnergyRows(rightRows)}
+      </div>
+    </div>
+  `;
+}
+
+function renderOilGasBoardError(message) {
+  const container = document.getElementById("oil-gas-board");
+  if (!container) return;
+
+  container.innerHTML = `
+    <div class="energy-card" style="grid-column: 1 / -1;">
+      <div class="energy-card-header">
+        <div class="energy-card-title">Data Unavailable</div>
+        <div class="energy-card-note">Q3 Debug</div>
+      </div>
+      <div class="energy-rows">
+        <div class="energy-row">
+          <div class="energy-row-left">
+            <div class="energy-label">The oil / gas board did not load.</div>
+            <div class="energy-meta">${escapeHtml(message || "Unknown error")}</div>
+          </div>
+          <div class="energy-row-right">
+            <div class="energy-value">--</div>
+            <div class="energy-change flat">Check /oil-gas-board</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* =========================================================
    NEWS (Q4)
    ========================================================= */
 
 const NEWS_REFRESH_INTERVAL = 60000; // 1 minute
 const NEWS_API = "/news";
+const WEATHER_DASHBOARD_API = "/weather-dashboard";
+const WEATHER_REFRESH_INTERVAL = 15 * 60 * 1000;
+const Q4_ROTATE_INTERVAL = 20000;
+const Q4_TRANSITION_MS = 350;
+const Q4_VIEWS = [
+  { type: "headlines" },
+  { type: "weather", key: "regional", label: "Regional 7-Day" },
+  { type: "weather", key: "hartford", label: "Hartford Focus" },
+  { type: "weather", key: "outlook", label: "NOAA Outlooks" }
+];
+
+let weatherDashboardData = null;
+let currentQ4ViewIndex = 0;
+let q4TransitionInFlight = false;
 
 async function fetchLatestHeadlines() {
   try {
@@ -949,6 +1284,191 @@ async function updateLatestHeadlines() {
   const data = await fetchLatestHeadlines();
   if (!data || !Array.isArray(data.headlines)) return;
   renderHeadlines(data.headlines);
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function shortenSummary(value, maxLength = 60) {
+  const text = String(value ?? "").trim();
+  if (!text) return "";
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
+}
+
+function truncateSummary(value, maxLength = 60) {
+  const text = String(value ?? "").trim();
+  if (!text) return "";
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
+}
+
+async function fetchWeatherDashboard() {
+  try {
+    const res = await fetch(WEATHER_DASHBOARD_API, { cache: "no-store" });
+    return await res.json();
+  } catch (err) {
+    console.log("Weather dashboard fetch error:", err);
+    return null;
+  }
+}
+
+function renderRegionalWeatherView(data) {
+  const cities = data?.regional?.cities ?? [];
+  if (!cities.length) {
+    return `<div class="weather-empty">Regional weather is temporarily unavailable.</div>`;
+  }
+
+  return `
+    <div class="weather-view weather-grid-two">
+      ${cities.map(city => `
+        <div class="weather-city-panel">
+          <div class="weather-city-name">${escapeHtml(city.city)}</div>
+          <div class="weather-updated">Official NWS 7-day forecast</div>
+          <div class="weather-day-list">
+            ${(city.days ?? []).slice(0, 7).map(day => `
+              <div class="weather-day-row">
+                <div class="weather-day-name">${escapeHtml(day.name)}</div>
+                <div class="weather-day-temp">${escapeHtml(day.temperature_display)}</div>
+                <div class="weather-day-summary">${escapeHtml(truncateSummary(day.summary, 70))}</div>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderHartfordWeatherView(data) {
+  const current = data?.hartford?.current;
+  const periods = data?.hartford?.extended ?? [];
+
+  if (!current) {
+    return `<div class="weather-empty">Hartford weather is temporarily unavailable.</div>`;
+  }
+
+  return `
+    <div class="weather-view weather-hartford-layout">
+      <div class="weather-hartford-today">
+        <div class="weather-panel-title">Hartford Today</div>
+        <div class="weather-updated">Official NWS forecast</div>
+        <div class="weather-hartford-current-temp">${escapeHtml(current.temperature_display)}</div>
+        <div class="weather-hartford-current-name">${escapeHtml(current.name)}</div>
+        <div class="weather-hartford-current-summary">${escapeHtml(current.short_forecast)}</div>
+        <div class="weather-hartford-current-detail">${escapeHtml(current.detail)}</div>
+      </div>
+      <div class="weather-city-panel">
+        <div class="weather-panel-title">Hartford Extended</div>
+        <div class="weather-mini-grid">
+          ${periods.slice(0, 8).map(period => `
+            <div class="weather-mini-card">
+              <div class="weather-mini-name">${escapeHtml(period.name)}</div>
+              <div class="weather-mini-temp">${escapeHtml(period.temperature_display)}</div>
+              <div class="weather-mini-summary">${escapeHtml(truncateSummary(period.short_forecast, 28))}</div>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderOutlookWeatherView(data) {
+  const outlooks = data?.outlooks ?? [];
+  if (!outlooks.length) {
+    return `<div class="weather-empty">NOAA outlooks are temporarily unavailable.</div>`;
+  }
+
+  return `
+    <div class="weather-view weather-outlook-grid">
+      ${outlooks.map(outlook => `
+        <div class="weather-outlook-card">
+          <div class="weather-outlook-name">${escapeHtml(outlook.label)}</div>
+          ${outlook.image_url ? `
+            <div class="weather-outlook-image-wrap">
+              <img
+                class="weather-outlook-image"
+                src="${escapeHtml(outlook.image_url)}"
+                alt="${escapeHtml(outlook.label)}"
+              >
+            </div>
+          ` : ""}
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function buildWeatherViewHtml(viewKey, data) {
+  if (!data) {
+    return `<div class="weather-loading">Loading official weather and NOAA outlooks...</div>`;
+  }
+
+  if (data.error) {
+    return `<div class="weather-empty">${escapeHtml(`Weather data unavailable: ${data.error}`)}</div>`;
+  }
+
+  if (viewKey === "regional") return renderRegionalWeatherView(data);
+  if (viewKey === "hartford") return renderHartfordWeatherView(data);
+  return renderOutlookWeatherView(data);
+}
+
+function renderQ4View() {
+  const headlinesShell = document.getElementById("q4-headlines-shell");
+  const weatherShell = document.getElementById("q4-weather-shell");
+  const stage = document.getElementById("weather-rotator");
+  const label = document.getElementById("weather-view-label");
+  if (!headlinesShell || !weatherShell || !stage || !label) return;
+
+  const view = Q4_VIEWS[currentQ4ViewIndex];
+
+  headlinesShell.classList.remove("active");
+  weatherShell.classList.remove("active");
+
+  if (view.type === "headlines") {
+    headlinesShell.classList.add("active");
+    return;
+  }
+
+  weatherShell.classList.add("active");
+  label.textContent = view.label;
+  stage.innerHTML = buildWeatherViewHtml(view.key, weatherDashboardData);
+}
+
+async function updateWeatherDashboard() {
+  const data = await fetchWeatherDashboard();
+  if (!data) return;
+  weatherDashboardData = data;
+  const currentView = Q4_VIEWS[currentQ4ViewIndex];
+  if (currentView.type === "weather") {
+    renderQ4View();
+  }
+}
+
+async function rotateQ4View() {
+  const headlinesShell = document.getElementById("q4-headlines-shell");
+  const weatherShell = document.getElementById("q4-weather-shell");
+  if (!headlinesShell || !weatherShell || q4TransitionInFlight) return;
+
+  q4TransitionInFlight = true;
+
+  const activeShell = headlinesShell.classList.contains("active") ? headlinesShell : weatherShell;
+  activeShell.style.opacity = "0";
+
+  await new Promise(resolve => setTimeout(resolve, Q4_TRANSITION_MS));
+
+  activeShell.style.opacity = "1";
+  currentQ4ViewIndex = (currentQ4ViewIndex + 1) % Q4_VIEWS.length;
+  renderQ4View();
+
+  q4TransitionInFlight = false;
 }
 
 /* =========================================================
@@ -1016,6 +1536,7 @@ startTickerCountdown();
 
 updateHenryHub(); // initial load
 setInterval(() => {
+  if (q1TransitionInFlight) return;
   if (q1Mode === "gas") updateHenryHub();
   if (q1Mode === "electric") updateElectric();
 }, 60000);
@@ -1023,8 +1544,13 @@ setInterval(() => {
 updateLatestHeadlines();
 setInterval(updateLatestHeadlines, NEWS_REFRESH_INTERVAL);
 
-fetchEventWatch();
-setInterval(fetchEventWatch, EVENT_REFRESH_INTERVAL);
+updateWeatherDashboard();
+setInterval(updateWeatherDashboard, WEATHER_REFRESH_INTERVAL);
+renderQ4View();
+setInterval(rotateQ4View, Q4_ROTATE_INTERVAL);
 
-setInterval(rotateAssets, 15000);
+fetchOilGasBoard();
+setInterval(fetchOilGasBoard, OIL_GAS_REFRESH_INTERVAL);
+
+setInterval(rotateAssets, 5000);
 setInterval(updateAsset, 60000);

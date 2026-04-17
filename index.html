@@ -30,7 +30,7 @@
     <!-- Q1 -->
     <div class="quadrant" id="q1">
       <div class="quad-inner">
-        <div class="quad-title">Gas and Electric</div>
+        <div class="quad-title">Power Markets</div>
       </div>
     </div>
     <!-- Q2 -->
@@ -44,41 +44,33 @@
     <div class="quadrant" id="q3">
       <div class="quad-inner">
 
-        <!-- Q3 HEADER (Single Line Layout) -->
         <div class="q3-header">
-
-          <!-- LEFT -->
-          <div class="q3-title">Event Watch</div>
-
-          <!-- CENTER -->
-          <div id="doughcon-indicator"></div>
-
-          <!-- RIGHT LEGEND BOX -->
-          <div class="doughcon-legend-box">
-            <div class="legend-item level-1">1</div>
-            <div class="legend-item level-2">2</div>
-            <div class="legend-item level-3">3</div>
-            <div class="legend-item level-4">4</div>
-            <div class="legend-item level-5">5</div>
-          </div>
-
+          <div class="q3-title">Oil &amp; Fuels</div>
         </div>
-
-        <!-- EVENT CONTENT -->
-        <div id="event-watch-container">
-          <div id="event-watch-content"></div>
-        </div>
+        <div id="oil-gas-board"></div>
 
       </div>
     </div>
     <!-- Q4 -->
     <div class="quadrant" id="q4">
-      <div class="news-title">Latest Headlines</div>
+      <div id="q4-headlines-shell" class="q4-view-shell active">
+        <div class="news-title">Latest Headlines</div>
+        <div id="news-container">
+          <div class="news-item" id="headline-1"></div>
+          <div class="news-item" id="headline-2"></div>
+          <div class="news-item" id="headline-3"></div>
+        </div>
+      </div>
 
-      <div id="news-container">
-        <div class="news-item" id="headline-1"></div>
-        <div class="news-item" id="headline-2"></div>
-        <div class="news-item" id="headline-3"></div>
+      <div id="q4-weather-shell" class="q4-view-shell">
+        <div class="q4-weather-header">
+          <div class="quad-title q4-weather-title-box">Weather Views</div>
+          <div id="weather-view-label">Regional 7-Day</div>
+        </div>
+
+        <div id="weather-rotator">
+          <div class="weather-loading">Loading official weather and NOAA outlooks...</div>
+        </div>
       </div>
     </div>
 

@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,11 +20,19 @@ import io
 from datetime import date, timedelta, datetime
 import zipfile
 from pathlib import Path
+import subprocess
+import hashlib
+import hmac
 
 
 app = FastAPI()
 
 BASE_DIR = Path(__file__).resolve().parent
+DEPLOY_BRANCH = os.getenv("DEPLOY_BRANCH", "refs/heads/main")
+DEPLOY_SCRIPT_PATH = Path(
+    os.getenv("DEPLOY_SCRIPT_PATH", str(BASE_DIR / "deploy-webhook.sh"))
+)
+GITHUB_WEBHOOK_SECRET = os.getenv("GITHUB_WEBHOOK_SECRET", "")
 
 app.add_middleware(
     CORSMiddleware,
@@ -40,6 +48,83 @@ app.mount("/static", StaticFiles(directory=BASE_DIR), name="static")
 def get_index():
     return FileResponse(BASE_DIR / "index.html")
 
+def _verify_github_signature(payload: bytes, signature_header: str | None) -> bool:
+    if not GITHUB_WEBHOOK_SECRET or not signature_header:
+        return False
+
+    expected = "sha256=" + hmac.new(
+        GITHUB_WEBHOOK_SECRET.encode("utf-8"),
+        payload,
+        hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(expected, signature_header)
+
+def _run_deploy_script() -> dict:
+    if not DEPLOY_SCRIPT_PATH.exists():
+        raise FileNotFoundError(f"Deploy script not found: {DEPLOY_SCRIPT_PATH}")
+
+    result = subprocess.run(
+        [str(DEPLOY_SCRIPT_PATH)],
+        cwd=str(BASE_DIR),
+        capture_output=True,
+        text=True,
+        timeout=300,
+        check=False,
+    )
+
+    stdout_tail = (result.stdout or "").strip()[-4000:]
+    stderr_tail = (result.stderr or "").strip()[-4000:]
+
+    return {
+        "returncode": result.returncode,
+        "stdout": stdout_tail,
+        "stderr": stderr_tail,
+    }
+
+@app.post("/webhook/github")
+async def github_webhook(
+    request: Request,
+    x_github_event: str | None = Header(default=None),
+    x_hub_signature_256: str | None = Header(default=None),
+):
+    payload = await request.body()
+
+    if not _verify_github_signature(payload, x_hub_signature_256):
+        raise HTTPException(status_code=401, detail="Invalid GitHub webhook signature")
+
+    try:
+        body = json.loads(payload.decode("utf-8")) if payload else {}
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload") from exc
+
+    if x_github_event == "ping":
+        return {"status": "ok", "message": "GitHub webhook received"}
+
+    if x_github_event != "push":
+        return {"status": "ignored", "reason": f"Unsupported event: {x_github_event}"}
+
+    ref = body.get("ref", "")
+    if ref != DEPLOY_BRANCH:
+        return {"status": "ignored", "reason": f"Push was for {ref or 'unknown ref'}"}
+
+    deploy_result = _run_deploy_script()
+
+    if deploy_result["returncode"] != 0:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": "Deploy script failed",
+                "stdout": deploy_result["stdout"],
+                "stderr": deploy_result["stderr"],
+            },
+        )
+
+    return {
+        "status": "deployed",
+        "ref": ref,
+        "stdout": deploy_result["stdout"],
+    }
+
 # =========================================================
 # CACHE
 # =========================================================
@@ -47,9 +132,13 @@ def get_index():
 cache = {}
 news_cache = {"data": None, "timestamp": 0}
 event_watch_cache = {"data": None, "timestamp": 0}
+oil_gas_cache = {"data": None, "timestamp": 0}
+weather_dashboard_cache = {"data": None, "timestamp": 0}
 
 CACHE_DURATION = 60
 EVENT_CACHE_DURATION = 60
+OIL_GAS_CACHE_DURATION = 60
+WEATHER_CACHE_DURATION = 900
 
 # =========================================================
 # GEO CONFIG (Pentagon Distance System)
@@ -96,6 +185,37 @@ DOUGHCON_COLORS = {
     4: "#00c853",  # Calm (current)
     5: "#2196f3"
 }
+
+NWS_HEADERS = {
+    "User-Agent": "BridgeDashboard/1.0 (Bridge Dashboard Project)",
+    "Accept": "application/geo+json"
+}
+
+WEATHER_LOCATIONS = {
+    "boston": {"city_name": "Boston", "lat": 42.3601, "lon": -71.0589},
+    "chicago": {"city_name": "Chicago", "lat": 41.8781, "lon": -87.6298},
+    "hartford": {"city_name": "Hartford", "lat": 41.7658, "lon": -72.6734},
+}
+
+NOAA_OUTLOOK_SOURCES = [
+    {
+        "key": "week",
+        "label": "1 Week NOAA",
+        "url": "https://www.cpc.ncep.noaa.gov/products/predictions/610day/",
+        "image_url": "https://www.cpc.ncep.noaa.gov/products/predictions/610day/610temp.new.gif",
+    },
+    {
+        "key": "month",
+        "label": "1 Month NOAA",
+        "url": "https://www.cpc.ncep.noaa.gov/products/predictions/30day/",
+        "image_url": "https://www.cpc.ncep.noaa.gov/products/predictions/30day/off14_temp.gif",
+    },
+]
+
+def _direct_get(url, headers=None, timeout=10):
+    session = requests.Session()
+    session.trust_env = False
+    return session.get(url, headers=headers, timeout=timeout)
 
 # =========================================================
 # HENRY HUB FUTURES (ROLLED FRONT + NEXT 6)
@@ -811,6 +931,144 @@ def get_quote(symbol: str):
     except Exception:
         return {"price": 0, "change": 0}
 
+def _format_nws_updated(value):
+    if not value:
+        return None
+
+    try:
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return dt.astimezone(ZoneInfo("America/New_York")).strftime("%b %d %I:%M %p ET")
+    except Exception:
+        return value
+
+def _temperature_display(period):
+    temp = period.get("temperature")
+    unit = period.get("temperatureUnit") or "F"
+    if temp is None:
+        return "--"
+    return f"{temp}\N{DEGREE SIGN}{unit}"
+
+def _normalize_forecast_period(period):
+    return {
+        "name": period.get("name", ""),
+        "is_daytime": bool(period.get("isDaytime")),
+        "temperature": period.get("temperature"),
+        "temperature_display": _temperature_display(period),
+        "short_forecast": period.get("shortForecast", ""),
+        "summary": period.get("shortForecast", ""),
+        "detail": period.get("detailedForecast", ""),
+        "wind": " ".join(
+            part for part in [period.get("windSpeed", ""), period.get("windDirection", "")]
+            if part
+        ).strip(),
+    }
+
+def _fetch_nws_city_forecast(city_name, lat, lon):
+    points_url = f"https://api.weather.gov/points/{lat},{lon}"
+
+    points_resp = _direct_get(points_url, headers=NWS_HEADERS, timeout=10)
+    points_resp.raise_for_status()
+    points_data = points_resp.json()
+    forecast_url = points_data.get("properties", {}).get("forecast")
+
+    if not forecast_url:
+        raise ValueError(f"No forecast URL returned for {city_name}")
+
+    forecast_resp = _direct_get(forecast_url, headers=NWS_HEADERS, timeout=10)
+    forecast_resp.raise_for_status()
+    forecast_data = forecast_resp.json()
+
+    periods = forecast_data.get("properties", {}).get("periods", [])
+    normalized = [_normalize_forecast_period(period) for period in periods]
+    daytime_only = [period for period in normalized if period["is_daytime"]][:7]
+    if not daytime_only:
+        daytime_only = normalized[:7]
+    extended_daily = [period for period in normalized if period["is_daytime"]][:8]
+    if not extended_daily:
+        extended_daily = normalized[:8]
+
+    return {
+        "city": city_name,
+        "updated": _format_nws_updated(forecast_data.get("properties", {}).get("updated")),
+        "current": normalized[0] if normalized else None,
+        "days": daytime_only,
+        "extended": extended_daily,
+    }
+
+def _extract_first_match(text, patterns):
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if match:
+            return match.group(1).strip()
+    return None
+
+def _fetch_noaa_outlook(source):
+    response = _direct_get(
+        source["url"],
+        headers={"User-Agent": NWS_HEADERS["User-Agent"]},
+        timeout=10
+    )
+    response.raise_for_status()
+    html = response.text
+
+    if source["key"] == "week":
+        valid = _extract_first_match(html, [r"Valid:\s*([^<\r\n]+)"])
+        issued = _extract_first_match(html, [r"Updated:\s*([^<\r\n]+)"])
+        summary = "6-10 day national temperature and precipitation outlook."
+    elif source["key"] == "month":
+        valid = "30-day national outlook"
+        issued = _extract_first_match(html, [r"Issued:\s*([^<\r\n]+)"])
+        summary = "Official 30-day NOAA outlook for temperature and precipitation."
+    else:
+        valid = _extract_first_match(html, [r"0\.5 Month Outlook for\s*([^<\r\n]+)"])
+        issued = "Issued monthly near mid-month"
+        summary = "Official CPC seasonal outlooks and longer-lead national guidance."
+
+    return {
+        "label": source["label"],
+        "url": source["url"],
+        "image_url": source.get("image_url"),
+        "valid": valid,
+        "issued": issued,
+        "summary": summary,
+    }
+
+@app.get("/weather-dashboard")
+def get_weather_dashboard():
+    now = time.time()
+
+    if (
+        weather_dashboard_cache["data"]
+        and now - weather_dashboard_cache["timestamp"] < WEATHER_CACHE_DURATION
+    ):
+        return weather_dashboard_cache["data"]
+
+    try:
+        boston = _fetch_nws_city_forecast(**WEATHER_LOCATIONS["boston"])
+        chicago = _fetch_nws_city_forecast(**WEATHER_LOCATIONS["chicago"])
+        hartford = _fetch_nws_city_forecast(**WEATHER_LOCATIONS["hartford"])
+        outlooks = [_fetch_noaa_outlook(source) for source in NOAA_OUTLOOK_SOURCES]
+
+        data = {
+            "regional": {
+                "cities": [boston, chicago],
+            },
+            "hartford": hartford,
+            "outlooks": outlooks,
+        }
+
+        weather_dashboard_cache["data"] = data
+        weather_dashboard_cache["timestamp"] = now
+        return data
+
+    except Exception as e:
+        return {
+            "regional": {"cities": []},
+            "hartford": {"current": None, "extended": []},
+            "outlooks": [],
+            "error": str(e),
+        }
+
 # =========================================================
 # NEWS SYSTEM
 # =========================================================
@@ -853,7 +1111,7 @@ MARKET_TERMS = {
     "china": 2,
 }
 
-LOW_SIGNAL_TERMS = ["lifestyle", "how to", "best places", "travel", "top 10"]
+LOW_SIGNAL_TERMS = ["lifestyle", "how to", "best places", "travel", "top 10", "watchlist"]
 
 STOPWORDS = {
     "the","a","an","and","or","but","to","of","in","on",
@@ -1068,3 +1326,198 @@ def get_event_watch():
 
     except Exception as e:
         return {"error": str(e), "source": "pizzint.watch"}
+
+# =========================================================
+# OIL / GAS BOARD
+# =========================================================
+
+EIA_GAS_DIESEL_URL = "https://www.eia.gov/petroleum/gasdiesel/"
+
+def _extract_eia_text_lines(raw_html: str):
+    cleaned = re.sub(r"(?is)<script.*?</script>", " ", raw_html)
+    cleaned = re.sub(r"(?is)<style.*?</style>", " ", cleaned)
+    cleaned = re.sub(r"(?s)<[^>]+>", "\n", cleaned)
+    cleaned = cleaned.replace("\xa0", " ")
+
+    lines = []
+    for line in cleaned.splitlines():
+        normalized = re.sub(r"\s+", " ", line).strip()
+        if normalized:
+            lines.append(normalized)
+    return lines
+
+def _extract_us_average_from_lines(lines, heading_text: str):
+    text = "\n".join(lines)
+
+    pattern = re.compile(
+        rf"{re.escape(heading_text)}.*?"
+        rf"((?:\d{{2}}/\d{{2}}/\d{{2}}\s+){{2,}}\d{{2}}/\d{{2}}/\d{{2}}).*?"
+        rf"U\.S\.\s+((?:-?\d+\.\d+\s+){{2,}}-?\d+\.\d+)",
+        re.DOTALL
+    )
+
+    match = pattern.search(text)
+    if not match:
+        return None
+
+    dates = re.findall(r"\b\d{2}/\d{2}/\d{2}\b", match.group(1))
+    values = re.findall(r"-?\d+\.\d+", match.group(2))
+
+    if len(dates) < 2 or len(values) < 2:
+        return None
+
+    latest_value = float(values[len(dates) - 1])
+    prior_value = float(values[len(dates) - 2])
+    delta_value = latest_value - prior_value
+    delta_pct = 0.0 if prior_value == 0 else (delta_value / prior_value) * 100
+
+    return {
+        "date": dates[-1],
+        "value": round(latest_value, 3),
+        "prior_value": round(prior_value, 3),
+        "delta_value": round(delta_value, 3),
+        "delta_pct": round(delta_pct, 2)
+    }
+
+def fetch_retail_fuel_averages():
+    response = requests.get(
+        EIA_GAS_DIESEL_URL,
+        headers={"User-Agent": "Mozilla/5.0"},
+        timeout=15
+    )
+    response.raise_for_status()
+
+    lines = _extract_eia_text_lines(response.text)
+    gasoline = _extract_us_average_from_lines(lines, "U.S. Regular Gasoline Prices")
+    diesel = _extract_us_average_from_lines(lines, "U.S. On-Highway Diesel Fuel Prices")
+
+    if gasoline is None or diesel is None:
+        raise ValueError("Unable to parse EIA U.S. fuel averages")
+
+    return {"gasoline": gasoline, "diesel": diesel}
+
+def fetch_market_quote(symbol: str):
+    ticker = yf.Ticker(symbol)
+    info = ticker.info or {}
+
+    price = info.get("regularMarketPrice")
+    prev_close = info.get("regularMarketPreviousClose")
+    change = info.get("regularMarketChange")
+    change_pct = info.get("regularMarketChangePercent")
+
+    if price is None:
+        raise ValueError(f"Missing price for {symbol}")
+
+    if change is None and prev_close not in (None, 0):
+        change = float(price) - float(prev_close)
+
+    if change_pct is None and change is not None and prev_close not in (None, 0):
+        change_pct = (float(change) / float(prev_close)) * 100
+
+    contract_source = " ".join(
+        str(info.get(key, "")).strip()
+        for key in ("shortName", "longName", "symbol", "displayName")
+        if info.get(key)
+    )
+    contract_month = None
+    month_match = re.search(
+        r"\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{2,4}\b",
+        contract_source,
+        re.IGNORECASE
+    )
+    if month_match:
+        raw_month = month_match.group(0)
+        parsed_month = datetime.strptime(raw_month[:3], "%b")
+        year_match = re.search(r"(\d{2,4})$", raw_month)
+        if year_match:
+            raw_year = year_match.group(1)
+            year = int(raw_year)
+            if len(raw_year) == 2:
+                year += 2000
+            contract_month = f"{parsed_month.strftime('%b')} {str(year)[-2:]}"
+
+    if contract_month is None:
+        quote_type = str(info.get("quoteType", "")).lower()
+        expire_epoch = info.get("expireDate") or info.get("expirationDate")
+        if quote_type == "future" and expire_epoch:
+            try:
+                expiry_dt = datetime.fromtimestamp(int(expire_epoch), tz=timezone.utc)
+                contract_month = expiry_dt.strftime("%b %y")
+            except Exception:
+                pass
+
+    return {
+        "price": float(price),
+        "change": float(change) if change is not None else 0.0,
+        "change_pct": float(change_pct) if change_pct is not None else 0.0,
+        "contract_month": contract_month
+    }
+
+@app.get("/oil-gas-board")
+def get_oil_gas_board():
+    now = time.time()
+
+    if oil_gas_cache["data"] and now - oil_gas_cache["timestamp"] < OIL_GAS_CACHE_DURATION:
+        return oil_gas_cache["data"]
+
+    try:
+        retail = fetch_retail_fuel_averages()
+        wti = fetch_market_quote("CL=F")
+        brent = fetch_market_quote("BZ=F")
+        spread_value = wti["price"] - brent["price"]
+        spread_change = wti["change"] - brent["change"]
+        front_month_note = (
+            f"Day over day | Month Ahead: {wti['contract_month']}"
+            if wti.get("contract_month")
+            else "Day over day | Month Ahead"
+        )
+
+        data = {
+            "left_column": [
+                {
+                    "label": "Avg Gas Price",
+                    "meta": f"U.S. average retail gasoline | EIA week of {retail['gasoline']['date']}",
+                    "value": f"${retail['gasoline']['value']:.3f}",
+                    "change": retail["gasoline"]["delta_value"],
+                    "changeText": f"${retail['gasoline']['delta_value']:+.3f} ({retail['gasoline']['delta_pct']:+.2f}%)"
+                },
+                {
+                    "label": "Avg Diesel Price",
+                    "meta": f"U.S. average on-highway diesel | EIA week of {retail['diesel']['date']}",
+                    "value": f"${retail['diesel']['value']:.3f}",
+                    "change": retail["diesel"]["delta_value"],
+                    "changeText": f"${retail['diesel']['delta_value']:+.3f} ({retail['diesel']['delta_pct']:+.2f}%)"
+                }
+            ],
+            "right_column": [
+                {
+                    "label": "Crude Oil",
+                    "meta": "WTI benchmark",
+                    "value": f"${wti['price']:.2f}",
+                    "change": wti["change"],
+                    "changeText": f"${wti['change']:+.2f} ({wti['change_pct']:+.2f}%)"
+                },
+                {
+                    "label": "Brent Oil",
+                    "meta": "International benchmark",
+                    "value": f"${brent['price']:.2f}",
+                    "change": brent["change"],
+                    "changeText": f"${brent['change']:+.2f} ({brent['change_pct']:+.2f}%)"
+                },
+                {
+                    "label": "WTI - Brent Spread",
+                    "meta": "Current differential",
+                    "value": f"${spread_value:+.2f}",
+                    "change": spread_change,
+                    "changeText": f"${spread_change:+.2f}"
+                }
+            ],
+            "right_card_note": front_month_note,
+        }
+
+        oil_gas_cache["data"] = data
+        oil_gas_cache["timestamp"] = now
+        return data
+
+    except Exception as e:
+        return {"error": str(e)}
