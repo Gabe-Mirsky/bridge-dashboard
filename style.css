@@ -643,8 +643,8 @@ body {
 .weather-city-panel,
 .weather-hartford-today,
 .weather-outlook-card {
-  background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
-  border: 1px solid rgba(255,255,255,0.08);
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.12);
   border-radius: 10px;
   padding: clamp(10px, 0.9vw, 12px);
   min-width: 0;
@@ -753,21 +753,27 @@ body {
 
 .weather-mini-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
   gap: clamp(6px, 0.55vw, 8px);
+  height: 100%;
   min-height: 0;
   overflow: hidden;
-  align-content: start;
+  align-content: stretch;
 }
 
 .weather-mini-card {
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.06);
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.12);
   border-radius: 8px;
   padding: clamp(6px, 0.6vw, 8px) clamp(5px, 0.5vw, 6px);
   text-align: center;
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .weather-mini-name {
@@ -805,8 +811,8 @@ body {
 .weather-outlook-image-wrap {
   border-radius: 8px;
   overflow: hidden;
-  border: 1px solid rgba(255,255,255,0.08);
-  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.1);
+  background: transparent;
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
