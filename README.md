@@ -27,3 +27,4 @@ Live dashboard app served by FastAPI and Nginx on an Oracle VM.
 ```bash
 sudo systemctl restart bridge-dashboard
 ```
+Webhook deploy test
