@@ -676,12 +676,22 @@ body {
   line-height: 1.1;
 }
 
+.weather-city-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: clamp(6px, 0.6vw, 8px);
+}
+
 .weather-updated {
   font-size: clamp(10px, 0.8vw, 12px);
   text-transform: uppercase;
   letter-spacing: 1px;
   color: rgba(242,242,242,0.48);
   margin-bottom: clamp(6px, 0.6vw, 8px);
+  text-align: right;
+  white-space: nowrap;
 }
 
 .weather-day-list {
@@ -784,7 +794,47 @@ body {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: space-between;
+  align-items: center;
+  gap: 4px;
+}
+
+.weather-mini-icon {
+  font-size: clamp(18px, 1.5vw, 24px);
+  line-height: 1;
+  margin-bottom: 2px;
+}
+
+.weather-mini-icon-sun {
+  color: #ffd35c;
+}
+
+.weather-mini-icon-partly {
+  color: #ffd977;
+}
+
+.weather-mini-icon-cloud {
+  color: #d8e0ea;
+}
+
+.weather-mini-icon-rain {
+  color: #8ec5ff;
+}
+
+.weather-mini-icon-storm {
+  color: #c8a8ff;
+}
+
+.weather-mini-icon-snow {
+  color: #f4fbff;
+}
+
+.weather-mini-icon-fog {
+  color: #cdd6df;
+}
+
+.weather-mini-icon-wind {
+  color: #99d8ff;
 }
 
 .weather-mini-name {
@@ -807,6 +857,9 @@ body {
   font-size: clamp(10px, 0.72vw, 11px);
   color: rgba(242,242,242,0.62);
   line-height: 1.15;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
 }
 
 .weather-outlook-grid {

@@ -933,15 +933,29 @@ def get_electric():
 
 def fetch_from_yahoo(symbol: str):
     ticker = yf.Ticker(symbol)
-    info = ticker.info
+    info = ticker.info or {}
 
     price = info.get("regularMarketPrice")
     prev_close = info.get("regularMarketPreviousClose")
 
-    if price is None or prev_close is None or prev_close == 0:
-        return {"price": 0, "change": 0}
+    if price is None or prev_close in (None, 0):
+        fast_info = getattr(ticker, "fast_info", {}) or {}
+        price = price if price is not None else fast_info.get("lastPrice")
+        prev_close = prev_close if prev_close not in (None, 0) else fast_info.get("previousClose")
 
-    change = ((price - prev_close) / prev_close) * 100
+    if price is None or prev_close in (None, 0):
+        history = ticker.history(period="5d", interval="1d")
+        if history is not None and not history.empty:
+            closes = history["Close"].dropna().tolist()
+            if closes:
+                price = closes[-1]
+                if len(closes) >= 2:
+                    prev_close = closes[-2]
+
+    if price is None or prev_close in (None, 0):
+        raise ValueError(f"Missing quote data for {symbol}")
+
+    change = ((float(price) - float(prev_close)) / float(prev_close)) * 100
     return {"price": float(price), "change": float(change)}
 
 @app.get("/quote/{symbol}")
@@ -956,6 +970,9 @@ def get_quote(symbol: str):
         cache[symbol] = {"data": data, "timestamp": now}
         return data
     except Exception:
+        cached = cache.get(symbol)
+        if cached:
+            return cached["data"]
         return {"price": 0, "change": 0}
 
 def _format_nws_updated(value):

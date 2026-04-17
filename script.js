@@ -863,7 +863,7 @@ function updateTickerPanel() {
    ========================================================= */
 
 async function refreshAllTickers() {
-  const newData = {};
+  const newData = { ...tickerData };
 
   // PRELOAD everything first
   for (let asset of assets) {
@@ -1311,6 +1311,34 @@ function truncateSummary(value, maxLength = 60) {
   return `${text.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
 }
 
+function getWeatherIcon(shortForecast) {
+  const forecast = String(shortForecast ?? "").toLowerCase();
+
+  if (forecast.includes("thunder")) {
+    return { symbol: "⛈", className: "storm", label: "Storm" };
+  }
+  if (forecast.includes("snow") || forecast.includes("sleet") || forecast.includes("flurr")) {
+    return { symbol: "❄", className: "snow", label: "Snow" };
+  }
+  if (forecast.includes("rain") || forecast.includes("shower") || forecast.includes("drizzle")) {
+    return { symbol: "☂", className: "rain", label: "Rain" };
+  }
+  if (forecast.includes("partly sunny") || forecast.includes("partly cloudy") || forecast.includes("mostly sunny")) {
+    return { symbol: "⛅", className: "partly", label: "Partly sunny" };
+  }
+  if (forecast.includes("cloud") || forecast.includes("overcast")) {
+    return { symbol: "☁", className: "cloud", label: "Cloudy" };
+  }
+  if (forecast.includes("fog") || forecast.includes("mist") || forecast.includes("haze")) {
+    return { symbol: "〰", className: "fog", label: "Fog" };
+  }
+  if (forecast.includes("wind") || forecast.includes("breezy")) {
+    return { symbol: "🌀", className: "wind", label: "Windy" };
+  }
+
+  return { symbol: "☀", className: "sun", label: "Sunny" };
+}
+
 async function fetchWeatherDashboard() {
   try {
     const res = await fetch(WEATHER_DASHBOARD_API, { cache: "no-store" });
@@ -1331,8 +1359,10 @@ function renderRegionalWeatherView(data) {
     <div class="weather-view weather-grid-two">
       ${cities.map(city => `
         <div class="weather-city-panel">
-          <div class="weather-city-name">${escapeHtml(city.city)}</div>
-          <div class="weather-updated">Official NWS 7-day forecast</div>
+          <div class="weather-city-header">
+            <div class="weather-city-name">${escapeHtml(city.city)}</div>
+            <div class="weather-updated">Official NWS 7-day forecast</div>
+          </div>
           <div class="weather-day-list">
             ${(city.days ?? []).slice(0, 7).map(day => `
               <div class="weather-day-row">
@@ -1369,13 +1399,17 @@ function renderHartfordWeatherView(data) {
       <div class="weather-city-panel">
         <div class="weather-panel-title">Hartford Extended</div>
         <div class="weather-mini-grid">
-          ${periods.slice(0, 8).map(period => `
+          ${periods.slice(0, 8).map(period => {
+            const icon = getWeatherIcon(period.short_forecast);
+            return `
             <div class="weather-mini-card">
+              <div class="weather-mini-icon weather-mini-icon-${escapeHtml(icon.className)}" aria-label="${escapeHtml(icon.label)}" title="${escapeHtml(icon.label)}">${escapeHtml(icon.symbol)}</div>
               <div class="weather-mini-name">${escapeHtml(period.name)}</div>
               <div class="weather-mini-temp">${escapeHtml(period.temperature_display)}</div>
               <div class="weather-mini-summary">${escapeHtml(truncateSummary(period.short_forecast, 28))}</div>
             </div>
-          `).join("")}
+          `;
+          }).join("")}
         </div>
       </div>
     </div>
