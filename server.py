@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Header, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import yfinance as yf
@@ -49,7 +49,22 @@ app.mount("/static", StaticFiles(directory=BASE_DIR), name="static")
 
 @app.get("/")
 def get_index():
-    return FileResponse(BASE_DIR / "index.html")
+    index_path = BASE_DIR / "index.html"
+    html = index_path.read_text(encoding="utf-8")
+
+    style_version = (BASE_DIR / "style.css").stat().st_mtime_ns
+    script_version = (BASE_DIR / "script.js").stat().st_mtime_ns
+
+    html = html.replace(
+        'href="/static/style.css"',
+        f'href="/static/style.css?v={style_version}"'
+    )
+    html = html.replace(
+        'src="/static/script.js"',
+        f'src="/static/script.js?v={script_version}"'
+    )
+
+    return HTMLResponse(html)
 
 def _verify_github_signature(payload: bytes, signature_header: str | None) -> bool:
     if not GITHUB_WEBHOOK_SECRET or not signature_header:

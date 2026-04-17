@@ -741,14 +741,13 @@ body {
   line-height: 1.2;
   margin-bottom: clamp(6px, 0.5vw, 8px);
   font-size: clamp(13px, 1.02vw, 16px);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .weather-hartford-current-detail {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 6;
-  line-clamp: 6;
+  display: block;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .weather-mini-grid {
@@ -778,7 +777,9 @@ body {
 
 .weather-mini-name {
   font-size: clamp(10px, 0.8vw, 12px);
-  color: rgba(242,242,242,0.7);
+  color: rgba(255,255,255,0.96);
+  font-weight: 700;
+  letter-spacing: 0.3px;
   margin-bottom: 4px;
   min-height: 0;
 }
@@ -805,7 +806,7 @@ body {
 }
 
 .weather-outlook-name {
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .weather-outlook-image-wrap {
@@ -822,8 +823,8 @@ body {
   display: block;
   width: 100%;
   height: 100%;
-  max-height: clamp(150px, 23vh, 245px);
-  object-fit: contain;
+  max-height: clamp(190px, 28vh, 320px);
+  object-fit: cover;
   object-position: top center;
 }
 
@@ -883,6 +884,6 @@ body {
   }
 
   .weather-outlook-image {
-    max-height: clamp(140px, 24vh, 220px);
+    max-height: clamp(180px, 30vh, 280px);
   }
 }
