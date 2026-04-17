@@ -130,6 +130,7 @@ function initTopRightQuadrantLayout() {
   q2.style.flexDirection = "column";
   q2.style.justifyContent = "flex-start";
   q2.style.alignItems = "stretch";
+  q2.style.gap = "12px";
 
   const tickerWrap = document.getElementById("ticker-panel");
   const refreshTimer = document.getElementById("ticker-refresh-timer");
@@ -137,7 +138,7 @@ function initTopRightQuadrantLayout() {
 
   // UPDATED: Title pinned top, price block centered in remaining space
   if (mainWrap) {
-    mainWrap.style.flex = "1";
+    mainWrap.style.flex = "1 1 0";
     mainWrap.style.display = "flex";
     mainWrap.style.flexDirection = "column";
     mainWrap.style.justifyContent = "flex-start"; // ✅ title stays top
@@ -155,19 +156,20 @@ function initTopRightQuadrantLayout() {
   }
 
   if (tickerWrap) {
-    tickerWrap.style.flex = "0 0 auto";
-    tickerWrap.style.padding = "10px 14px 10px 14px";
+    tickerWrap.style.flex = "1 1 0";
+    tickerWrap.style.padding = "0 14px 10px 14px";
     tickerWrap.style.boxSizing = "border-box";
     tickerWrap.style.display = "flex";
     tickerWrap.style.flexDirection = "column";
-    tickerWrap.style.marginTop = "-10px";
+    tickerWrap.style.justifyContent = "space-between";
+    tickerWrap.style.minHeight = "0";
   }
 
   if (refreshTimer) {
     refreshTimer.style.fontSize = "11px";
     refreshTimer.style.opacity = "0.55";
     refreshTimer.style.textAlign = "right";
-    refreshTimer.style.marginTop = "-30px";
+    refreshTimer.style.marginTop = "8px";
     refreshTimer.style.paddingRight = "4px";
   }
 }
@@ -844,12 +846,12 @@ function updateTickerPanel() {
   }
 
   panel.innerHTML = `
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:24px;">
-      <div>
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:24px; height:100%; align-content:space-evenly;">
+      <div style="display:flex; flex-direction:column; justify-content:space-evenly;">
         ${renderGroup("Indices", grouped["Indices"])}
         ${renderGroup("Metals", grouped["Metals"])}
       </div>
-      <div>
+      <div style="display:flex; flex-direction:column; justify-content:space-evenly;">
         ${renderGroup("Big Stocks", grouped["Big Stocks"])}
       </div>
     </div>

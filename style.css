@@ -380,11 +380,23 @@ body {
   justify-content: space-evenly;
 }
 
+.energy-card-right .energy-rows {
+  justify-content: space-evenly;
+}
+
 .energy-card-left .energy-row:first-child {
   padding-top: 4px;
 }
 
+.energy-card-right .energy-row:first-child {
+  padding-top: 4px;
+}
+
 .energy-card-left .energy-row + .energy-row {
+  margin-top: 0;
+}
+
+.energy-card-right .energy-row + .energy-row {
   margin-top: 0;
 }
 
