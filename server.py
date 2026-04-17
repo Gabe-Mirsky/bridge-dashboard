@@ -956,8 +956,13 @@ def fetch_from_yahoo(symbol: str):
     if price is None or prev_close in (None, 0):
         raise ValueError(f"Missing quote data for {symbol}")
 
-    change = ((float(price) - float(prev_close)) / float(prev_close)) * 100
-    return {"price": float(price), "change": float(change)}
+    change_dollar = float(price) - float(prev_close)
+    change = (change_dollar / float(prev_close)) * 100
+    return {
+        "price": float(price),
+        "change": float(change),
+        "change_dollar": float(change_dollar),
+    }
 
 @app.get("/quote/{symbol}")
 def get_quote(symbol: str):

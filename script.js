@@ -147,16 +147,18 @@ function initTopRightQuadrantLayout() {
   }
 
   if (centerWrap) {
-    centerWrap.style.flex = "1";                  // take remaining height under title
+    centerWrap.style.flex = "0 0 auto";
     centerWrap.style.display = "flex";
     centerWrap.style.flexDirection = "column";
-    centerWrap.style.justifyContent = "center";   // ✅ price stays centered
+    centerWrap.style.justifyContent = "flex-start";
     centerWrap.style.alignItems = "center";
+    centerWrap.style.gap = "2px";
+    centerWrap.style.paddingTop = "2px";
     centerWrap.style.minHeight = "0";
   }
 
   if (tickerWrap) {
-    tickerWrap.style.flex = "1.1 1 0";
+    tickerWrap.style.flex = "1.2 1 0";
     tickerWrap.style.padding = "0 12px 8px 12px";
     tickerWrap.style.boxSizing = "border-box";
     tickerWrap.style.display = "flex";
@@ -673,8 +675,9 @@ async function updateAsset() {
 
   const price = Number(data.price);
   const change = Number(data.change);
+  const changeDollar = Number(data.change_dollar ?? 0);
 
-  tickerData[asset.symbol] = { name: asset.name, price, change };
+  tickerData[asset.symbol] = { name: asset.name, price, change, changeDollar };
 
   const nameEl = document.getElementById("asset-name");
   if (nameEl) nameEl.textContent = asset.name;
@@ -693,7 +696,7 @@ async function updateAsset() {
     priceEl.innerHTML = `
       <span>$${formattedPrice}</span>
       <span style="color:${color}; margin-left:1px; font-size:0.6em;">
-        ${arrow} ${Math.abs(change).toFixed(2)}%
+        ${arrow} $${Math.abs(changeDollar).toFixed(2)} (${Math.abs(change).toFixed(2)}%)
       </span>
     `;
   }
@@ -800,10 +803,11 @@ function updateTickerPanel() {
         : "--";
 
       const change = data ? data.change : 0;
+      const changeDollar = data ? (data.changeDollar ?? 0) : 0;
       const isPositive = change >= 0;
       const arrow = data ? (isPositive ? "▲" : "▼") : "";
       const color = data ? (isPositive ? "#00ff7f" : "#ff4c4c") : "#666";
-      const percent = data ? `${arrow} ${Math.abs(change).toFixed(2)}%` : "--";
+      const percent = data ? `${arrow} $${Math.abs(changeDollar).toFixed(2)} (${Math.abs(change).toFixed(2)}%)` : "--";
 
       rows += `
         <div
@@ -873,7 +877,8 @@ async function refreshAllTickers() {
       newData[asset.symbol] = {
         name: asset.name,
         price: Number(data.price),
-        change: Number(data.change)
+        change: Number(data.change),
+        changeDollar: Number(data.change_dollar ?? 0)
       };
     }
   }
@@ -912,7 +917,7 @@ async function refreshAllTickers() {
     const color = isPositive ? "#00ff7f" : "#ff4c4c";
 
     priceEl.textContent = `$${formattedPrice}`;
-    percentEl.textContent = `${arrow} ${Math.abs(updated.change).toFixed(2)}%`;
+    percentEl.textContent = `${arrow} $${Math.abs(updated.changeDollar ?? 0).toFixed(2)} (${Math.abs(updated.change).toFixed(2)}%)`;
     percentEl.style.color = color;
   });
 
