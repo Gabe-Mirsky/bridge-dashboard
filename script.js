@@ -809,10 +809,10 @@ function updateTickerPanel() {
         <div
           class="ticker-row"
           data-symbol="${asset.symbol}"
-          style="display:flex; justify-content:space-between; align-items:center; font-size:15px; padding:2px 4px; border-radius:4px;"
+          style="display:flex; justify-content:space-between; align-items:center; font-size:14px; line-height:1.1; padding:1px 4px; border-radius:4px;"
         >
           <span>${asset.name}</span>
-          <div style="display:flex; align-items:center; gap:10px;">
+          <div style="display:flex; align-items:center; gap:8px;">
             <span class="ticker-price">$${price}</span>
             <span class="ticker-percent" style="color:${color}">
               ${percent}
@@ -823,14 +823,14 @@ function updateTickerPanel() {
     });
 
     return `
-      <div style="margin-bottom:20px;">
+      <div style="margin-bottom:12px;">
         <div
           style="
-            font-size:14px;
+            font-size:13px;
             font-weight:600;
             letter-spacing:1px;
-            padding:6px 0;
-            margin-bottom:10px;
+            padding:4px 0;
+            margin-bottom:6px;
             border-top:1px solid rgba(255,255,255,0.08);
             border-bottom:1px solid rgba(255,255,255,0.08);
             color:#bbbbbb;
@@ -838,7 +838,7 @@ function updateTickerPanel() {
         >
           ${title}
         </div>
-        <div style="display:flex; flex-direction:column; gap:6px;">
+        <div style="display:flex; flex-direction:column; gap:4px;">
           ${rows}
         </div>
       </div>
@@ -846,12 +846,12 @@ function updateTickerPanel() {
   }
 
   panel.innerHTML = `
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:24px; height:100%; align-content:space-evenly;">
-      <div style="display:flex; flex-direction:column; justify-content:space-evenly;">
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; height:100%; min-height:0;">
+      <div style="display:flex; flex-direction:column; justify-content:space-between; min-height:0;">
         ${renderGroup("Indices", grouped["Indices"])}
         ${renderGroup("Metals", grouped["Metals"])}
       </div>
-      <div style="display:flex; flex-direction:column; justify-content:space-evenly;">
+      <div style="display:flex; flex-direction:column; justify-content:flex-start; min-height:0;">
         ${renderGroup("Big Stocks", grouped["Big Stocks"])}
       </div>
     </div>
