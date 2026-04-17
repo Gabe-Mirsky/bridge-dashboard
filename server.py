@@ -23,6 +23,7 @@ from pathlib import Path
 import subprocess
 import hashlib
 import hmac
+from urllib.parse import urljoin
 
 
 app = FastAPI()
@@ -228,7 +229,7 @@ NOAA_OUTLOOK_SOURCES = [
     {
         "key": "week",
         "label": "1 Week NOAA",
-        "url": "https://www.cpc.ncep.noaa.gov/products/predictions/610day/",
+        "url": "https://www.cpc.ncep.noaa.gov/products/predictions/6-10_day/",
         "image_url": "https://www.cpc.ncep.noaa.gov/products/predictions/610day/610temp.new.gif",
     },
     {
@@ -1046,6 +1047,73 @@ def _extract_first_match(text, patterns):
             return match.group(1).strip()
     return None
 
+def _extract_img_candidates(html: str):
+    candidates = []
+    for match in re.finditer(r"<img\b([^>]+)>", html, flags=re.IGNORECASE | re.DOTALL):
+        tag = match.group(1)
+        src_match = re.search(r'src=["\']([^"\']+)["\']', tag, flags=re.IGNORECASE)
+        if not src_match:
+            continue
+
+        src = src_match.group(1).strip()
+        alt_match = re.search(r'alt=["\']([^"\']*)["\']', tag, flags=re.IGNORECASE)
+        title_match = re.search(r'title=["\']([^"\']*)["\']', tag, flags=re.IGNORECASE)
+        label = " ".join(
+            value for value in [
+                alt_match.group(1).strip() if alt_match else "",
+                title_match.group(1).strip() if title_match else "",
+            ]
+            if value
+        ).lower()
+
+        candidates.append({"src": src, "label": label})
+
+    return candidates
+
+def _select_noaa_image_url(base_url: str, html: str, source_key: str, fallback_url: str | None):
+    candidates = _extract_img_candidates(html)
+    filtered = []
+
+    for candidate in candidates:
+        src = candidate["src"]
+        label = candidate["label"]
+        src_lower = src.lower()
+
+        if not any(ext in src_lower for ext in (".png", ".gif", ".jpg", ".jpeg", ".webp")):
+            continue
+        if any(skip in src_lower for skip in ("logo", "icon", "usa.gov", "weather.gov", "noaa", "nws")):
+            continue
+
+        score = 0
+
+        if source_key == "week":
+            if any(term in src_lower for term in ("610", "6-10", "6_10", "6to10")):
+                score += 4
+            if "temp" in src_lower or "temperature" in src_lower:
+                score += 5
+            if "precip" in src_lower:
+                score -= 3
+            if "temperature" in label:
+                score += 3
+        elif source_key == "month":
+            if any(term in src_lower for term in ("30day", "30_day", "off", "month")):
+                score += 4
+            if "temp" in src_lower or "temperature" in src_lower:
+                score += 5
+            if "precip" in src_lower:
+                score -= 3
+            if "temperature" in label:
+                score += 3
+
+        score += max(0, len(src))
+        filtered.append((score, urljoin(base_url, src)))
+
+    if filtered:
+        filtered.sort(key=lambda item: item[0], reverse=True)
+        return filtered[0][1]
+
+    return fallback_url
+
 def _fetch_noaa_outlook(source):
     response = _direct_get(
         source["url"],
@@ -1068,10 +1136,17 @@ def _fetch_noaa_outlook(source):
         issued = "Issued monthly near mid-month"
         summary = "Official CPC seasonal outlooks and longer-lead national guidance."
 
+    image_url = _select_noaa_image_url(
+        source["url"],
+        html,
+        source["key"],
+        source.get("image_url")
+    )
+
     return {
         "label": source["label"],
         "url": source["url"],
-        "image_url": source.get("image_url"),
+        "image_url": image_url,
         "valid": valid,
         "issued": issued,
         "summary": summary,
