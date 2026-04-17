@@ -813,15 +813,13 @@ function updateTickerPanel() {
         <div
           class="ticker-row"
           data-symbol="${asset.symbol}"
-          style="display:flex; justify-content:space-between; align-items:center; font-size:13px; line-height:1.05; padding:1px 3px; border-radius:4px;"
+          style="display:grid; grid-template-columns:minmax(0, 1.15fr) minmax(88px, 0.8fr) minmax(138px, 1fr); column-gap:10px; align-items:center; font-size:13px; line-height:1.1; padding:2px 3px; border-radius:4px;"
         >
-          <span>${asset.name}</span>
-          <div style="display:flex; align-items:center; gap:6px;">
-            <span class="ticker-price">$${price}</span>
-            <span class="ticker-percent" style="color:${color}">
-              ${percent}
-            </span>
-          </div>
+          <span style="min-width:0;">${asset.name}</span>
+          <span class="ticker-price" style="text-align:right;">$${price}</span>
+          <span class="ticker-percent" style="color:${color}; text-align:right; white-space:nowrap;">
+            ${percent}
+          </span>
         </div>
       `;
     });
@@ -842,7 +840,7 @@ function updateTickerPanel() {
         >
           ${title}
         </div>
-        <div style="display:flex; flex-direction:column; gap:3px;">
+        <div style="display:flex; flex-direction:column; gap:5px;">
           ${rows}
         </div>
       </div>
