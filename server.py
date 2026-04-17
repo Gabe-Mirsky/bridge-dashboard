@@ -33,6 +33,9 @@ DEPLOY_SCRIPT_PATH = Path(
     os.getenv("DEPLOY_SCRIPT_PATH", str(BASE_DIR / "deploy-webhook.sh"))
 )
 GITHUB_WEBHOOK_SECRET = os.getenv("GITHUB_WEBHOOK_SECRET", "")
+DEPLOY_LOG_PATH = Path(
+    os.getenv("DEPLOY_LOG_PATH", str(BASE_DIR / "deploy-webhook.log"))
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -81,6 +84,25 @@ def _run_deploy_script() -> dict:
         "stderr": stderr_tail,
     }
 
+def _launch_deploy_script() -> None:
+    if not DEPLOY_SCRIPT_PATH.exists():
+        raise FileNotFoundError(f"Deploy script not found: {DEPLOY_SCRIPT_PATH}")
+
+    log_handle = open(DEPLOY_LOG_PATH, "a", encoding="utf-8")
+    timestamp = datetime.now(timezone.utc).isoformat()
+    log_handle.write(f"\n=== Deploy triggered {timestamp} ===\n")
+    log_handle.flush()
+
+    subprocess.Popen(
+        [str(DEPLOY_SCRIPT_PATH)],
+        cwd=str(BASE_DIR),
+        stdout=log_handle,
+        stderr=log_handle,
+        text=True,
+        start_new_session=True,
+        close_fds=True,
+    )
+
 @app.post("/webhook/github")
 async def github_webhook(
     request: Request,
@@ -107,22 +129,12 @@ async def github_webhook(
     if ref != DEPLOY_BRANCH:
         return {"status": "ignored", "reason": f"Push was for {ref or 'unknown ref'}"}
 
-    deploy_result = _run_deploy_script()
-
-    if deploy_result["returncode"] != 0:
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "message": "Deploy script failed",
-                "stdout": deploy_result["stdout"],
-                "stderr": deploy_result["stderr"],
-            },
-        )
+    _launch_deploy_script()
 
     return {
-        "status": "deployed",
+        "status": "accepted",
         "ref": ref,
-        "stdout": deploy_result["stdout"],
+        "message": "Deploy started in background",
     }
 
 # =========================================================
