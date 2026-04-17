@@ -130,15 +130,16 @@ function initTopRightQuadrantLayout() {
   q2.style.flexDirection = "column";
   q2.style.justifyContent = "flex-start";
   q2.style.alignItems = "stretch";
-  q2.style.gap = "12px";
+  q2.style.gap = "8px";
 
   const tickerWrap = document.getElementById("ticker-panel");
+  const tickerContent = document.getElementById("ticker-content");
   const refreshTimer = document.getElementById("ticker-refresh-timer");
   const centerWrap = document.getElementById("main-center");
 
   // UPDATED: Title pinned top, price block centered in remaining space
   if (mainWrap) {
-    mainWrap.style.flex = "0.9 1 0";
+    mainWrap.style.flex = "0.74 1 0";
     mainWrap.style.display = "flex";
     mainWrap.style.flexDirection = "column";
     mainWrap.style.justifyContent = "flex-start"; // ✅ title stays top
@@ -158,13 +159,18 @@ function initTopRightQuadrantLayout() {
   }
 
   if (tickerWrap) {
-    tickerWrap.style.flex = "1.2 1 0";
-    tickerWrap.style.padding = "0 12px 8px 12px";
+    tickerWrap.style.flex = "1.36 1 0";
+    tickerWrap.style.padding = "0 12px 6px 12px";
     tickerWrap.style.boxSizing = "border-box";
     tickerWrap.style.display = "flex";
     tickerWrap.style.flexDirection = "column";
     tickerWrap.style.justifyContent = "space-between";
     tickerWrap.style.minHeight = "0";
+  }
+
+  if (tickerContent) {
+    tickerContent.style.flex = "1 1 auto";
+    tickerContent.style.minHeight = "0";
   }
 
   if (refreshTimer) {
@@ -813,7 +819,7 @@ function updateTickerPanel() {
         <div
           class="ticker-row"
           data-symbol="${asset.symbol}"
-          style="display:grid; grid-template-columns:minmax(0, 1.15fr) minmax(88px, 0.8fr) minmax(138px, 1fr); column-gap:10px; align-items:center; font-size:13px; line-height:1.1; padding:2px 3px; border-radius:4px;"
+          style="display:grid; grid-template-columns:minmax(0, 1.15fr) minmax(88px, 0.8fr) minmax(138px, 1fr); column-gap:10px; align-items:center; font-size:13px; line-height:1.15; padding:4px 3px; border-radius:4px;"
         >
           <span style="min-width:0;">${asset.name}</span>
           <span class="ticker-price" style="text-align:right;">$${price}</span>
@@ -825,14 +831,14 @@ function updateTickerPanel() {
     });
 
     return `
-      <div style="margin-bottom:8px;">
+      <div style="margin-bottom:12px;">
         <div
           style="
             font-size:12px;
             font-weight:600;
             letter-spacing:1px;
-            padding:3px 0;
-            margin-bottom:4px;
+            padding:4px 0;
+            margin-bottom:6px;
             border-top:1px solid rgba(255,255,255,0.08);
             border-bottom:1px solid rgba(255,255,255,0.08);
             color:#bbbbbb;
@@ -840,7 +846,7 @@ function updateTickerPanel() {
         >
           ${title}
         </div>
-        <div style="display:flex; flex-direction:column; gap:5px;">
+        <div style="display:flex; flex-direction:column; gap:7px;">
           ${rows}
         </div>
       </div>
@@ -848,7 +854,7 @@ function updateTickerPanel() {
   }
 
   panel.innerHTML = `
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px; height:100%; min-height:0;">
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px; height:100%; min-height:0; align-items:start;">
       <div style="display:flex; flex-direction:column; justify-content:space-between; min-height:0;">
         ${renderGroup("Indices", grouped["Indices"])}
         ${renderGroup("Metals", grouped["Metals"])}
@@ -1421,13 +1427,17 @@ function renderHartfordWeatherView(data) {
   }
 
   const currentIcon = getWeatherIcon(current.short_forecast);
+  const currentName = (current.name ?? "").trim();
+  const showCurrentName =
+    currentName &&
+    !["today", "this afternoon"].includes(currentName.toLowerCase());
 
   return `
     <div class="weather-view weather-hartford-layout">
       <div class="weather-hartford-today">
         <div class="weather-panel-title">Hartford Today</div>
         <div class="weather-hartford-current-temp">${escapeHtml(current.temperature_display)}</div>
-        <div class="weather-hartford-current-name">${escapeHtml(current.name)}</div>
+        ${showCurrentName ? `<div class="weather-hartford-current-name">${escapeHtml(currentName)}</div>` : ""}
         <div class="weather-hartford-current-brief">
           <div class="weather-mini-icon weather-mini-icon-${escapeHtml(currentIcon.className)}" aria-label="${escapeHtml(currentIcon.label)}" title="${escapeHtml(currentIcon.label)}">${escapeHtml(currentIcon.symbol)}</div>
           <div class="weather-hartford-current-summary">${escapeHtml(current.short_forecast)}</div>
