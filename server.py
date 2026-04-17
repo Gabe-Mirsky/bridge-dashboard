@@ -998,9 +998,17 @@ def _temperature_display(period):
         return "--"
     return f"{temp}\N{DEGREE SIGN}{unit}"
 
+def _normalize_period_name(name: str):
+    label = str(name or "").strip()
+    if not label:
+        return ""
+    if label.lower().startswith("this "):
+        return "Today"
+    return label
+
 def _normalize_forecast_period(period):
     return {
-        "name": period.get("name", ""),
+        "name": _normalize_period_name(period.get("name", "")),
         "is_daytime": bool(period.get("isDaytime")),
         "temperature": period.get("temperature"),
         "temperature_display": _temperature_display(period),

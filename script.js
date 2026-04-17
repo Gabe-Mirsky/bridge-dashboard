@@ -1446,7 +1446,7 @@ function renderHartfordWeatherView(data) {
               <div class="weather-mini-icon weather-mini-icon-${escapeHtml(icon.className)}" aria-label="${escapeHtml(icon.label)}" title="${escapeHtml(icon.label)}">${escapeHtml(icon.symbol)}</div>
               <div class="weather-mini-name">${escapeHtml(period.name)}</div>
               <div class="weather-mini-temp">${escapeHtml(period.temperature_display)}</div>
-              <div class="weather-mini-summary">${escapeHtml(truncateSummary(period.short_forecast, 28))}</div>
+              <div class="weather-mini-summary">${escapeHtml(period.short_forecast)}</div>
             </div>
           `;
           }).join("")}
