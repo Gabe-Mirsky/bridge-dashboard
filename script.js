@@ -1389,16 +1389,19 @@ function renderRegionalWeatherView(data) {
         <div class="weather-city-panel">
           <div class="weather-city-header">
             <div class="weather-city-name">${escapeHtml(city.city)}</div>
-            <div class="weather-updated">Official NWS 7-day forecast</div>
           </div>
           <div class="weather-day-list">
-            ${(city.days ?? []).slice(0, 7).map(day => `
+            ${(city.days ?? []).slice(0, 7).map(day => {
+              const icon = getWeatherIcon(day.summary);
+              return `
               <div class="weather-day-row">
                 <div class="weather-day-name">${escapeHtml(day.name)}</div>
                 <div class="weather-day-temp">${escapeHtml(day.temperature_display)}</div>
+                <div class="weather-day-icon weather-mini-icon weather-mini-icon-${escapeHtml(icon.className)}" aria-label="${escapeHtml(icon.label)}" title="${escapeHtml(icon.label)}">${escapeHtml(icon.symbol)}</div>
                 <div class="weather-day-summary">${escapeHtml(truncateSummary(day.summary, 70))}</div>
               </div>
-            `).join("")}
+            `;
+            }).join("")}
           </div>
         </div>
       `).join("")}
@@ -1420,7 +1423,6 @@ function renderHartfordWeatherView(data) {
     <div class="weather-view weather-hartford-layout">
       <div class="weather-hartford-today">
         <div class="weather-panel-title">Hartford Today</div>
-        <div class="weather-updated">Official NWS forecast</div>
         <div class="weather-hartford-current-temp">${escapeHtml(current.temperature_display)}</div>
         <div class="weather-hartford-current-name">${escapeHtml(current.name)}</div>
         <div class="weather-hartford-current-brief">
