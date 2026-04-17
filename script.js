@@ -138,7 +138,7 @@ function initTopRightQuadrantLayout() {
 
   // UPDATED: Title pinned top, price block centered in remaining space
   if (mainWrap) {
-    mainWrap.style.flex = "1 1 0";
+    mainWrap.style.flex = "0.9 1 0";
     mainWrap.style.display = "flex";
     mainWrap.style.flexDirection = "column";
     mainWrap.style.justifyContent = "flex-start"; // ✅ title stays top
@@ -156,8 +156,8 @@ function initTopRightQuadrantLayout() {
   }
 
   if (tickerWrap) {
-    tickerWrap.style.flex = "1 1 0";
-    tickerWrap.style.padding = "0 14px 10px 14px";
+    tickerWrap.style.flex = "1.1 1 0";
+    tickerWrap.style.padding = "0 12px 8px 12px";
     tickerWrap.style.boxSizing = "border-box";
     tickerWrap.style.display = "flex";
     tickerWrap.style.flexDirection = "column";
@@ -809,10 +809,10 @@ function updateTickerPanel() {
         <div
           class="ticker-row"
           data-symbol="${asset.symbol}"
-          style="display:flex; justify-content:space-between; align-items:center; font-size:14px; line-height:1.1; padding:1px 4px; border-radius:4px;"
+          style="display:flex; justify-content:space-between; align-items:center; font-size:13px; line-height:1.05; padding:1px 3px; border-radius:4px;"
         >
           <span>${asset.name}</span>
-          <div style="display:flex; align-items:center; gap:8px;">
+          <div style="display:flex; align-items:center; gap:6px;">
             <span class="ticker-price">$${price}</span>
             <span class="ticker-percent" style="color:${color}">
               ${percent}
@@ -823,14 +823,14 @@ function updateTickerPanel() {
     });
 
     return `
-      <div style="margin-bottom:12px;">
+      <div style="margin-bottom:8px;">
         <div
           style="
-            font-size:13px;
+            font-size:12px;
             font-weight:600;
             letter-spacing:1px;
-            padding:4px 0;
-            margin-bottom:6px;
+            padding:3px 0;
+            margin-bottom:4px;
             border-top:1px solid rgba(255,255,255,0.08);
             border-bottom:1px solid rgba(255,255,255,0.08);
             color:#bbbbbb;
@@ -838,7 +838,7 @@ function updateTickerPanel() {
         >
           ${title}
         </div>
-        <div style="display:flex; flex-direction:column; gap:4px;">
+        <div style="display:flex; flex-direction:column; gap:3px;">
           ${rows}
         </div>
       </div>
@@ -846,7 +846,7 @@ function updateTickerPanel() {
   }
 
   panel.innerHTML = `
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; height:100%; min-height:0;">
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px; height:100%; min-height:0;">
       <div style="display:flex; flex-direction:column; justify-content:space-between; min-height:0;">
         ${renderGroup("Indices", grouped["Indices"])}
         ${renderGroup("Metals", grouped["Metals"])}
@@ -1311,7 +1311,7 @@ function truncateSummary(value, maxLength = 60) {
   return `${text.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
 }
 
-function getWeatherIcon(shortForecast) {
+function legacyWeatherIcon(shortForecast) {
   const forecast = String(shortForecast ?? "").toLowerCase();
 
   if (forecast.includes("thunder")) {
@@ -1337,6 +1337,34 @@ function getWeatherIcon(shortForecast) {
   }
 
   return { symbol: "☀", className: "sun", label: "Sunny" };
+}
+
+function getWeatherIcon(shortForecast) {
+  const forecast = String(shortForecast ?? "").toLowerCase();
+
+  if (forecast.includes("thunder")) {
+    return { symbol: "\u26c8", className: "storm", label: "Storm" };
+  }
+  if (forecast.includes("snow") || forecast.includes("sleet") || forecast.includes("flurr")) {
+    return { symbol: "\u2744", className: "snow", label: "Snow" };
+  }
+  if (forecast.includes("rain") || forecast.includes("shower") || forecast.includes("drizzle")) {
+    return { symbol: "\u{1F327}", className: "rain", label: "Rain" };
+  }
+  if (forecast.includes("partly sunny") || forecast.includes("partly cloudy") || forecast.includes("mostly sunny")) {
+    return { symbol: "\u26c5", className: "partly", label: "Partly sunny" };
+  }
+  if (forecast.includes("cloud") || forecast.includes("overcast")) {
+    return { symbol: "\u2601", className: "cloud", label: "Cloudy" };
+  }
+  if (forecast.includes("fog") || forecast.includes("mist") || forecast.includes("haze")) {
+    return { symbol: "\u3030", className: "fog", label: "Fog" };
+  }
+  if (forecast.includes("wind") || forecast.includes("breezy")) {
+    return { symbol: "\u{1F300}", className: "wind", label: "Windy" };
+  }
+
+  return { symbol: "\u2600", className: "sun", label: "Sunny" };
 }
 
 async function fetchWeatherDashboard() {
@@ -1386,6 +1414,8 @@ function renderHartfordWeatherView(data) {
     return `<div class="weather-empty">Hartford weather is temporarily unavailable.</div>`;
   }
 
+  const currentIcon = getWeatherIcon(current.short_forecast);
+
   return `
     <div class="weather-view weather-hartford-layout">
       <div class="weather-hartford-today">
@@ -1393,7 +1423,10 @@ function renderHartfordWeatherView(data) {
         <div class="weather-updated">Official NWS forecast</div>
         <div class="weather-hartford-current-temp">${escapeHtml(current.temperature_display)}</div>
         <div class="weather-hartford-current-name">${escapeHtml(current.name)}</div>
-        <div class="weather-hartford-current-summary">${escapeHtml(current.short_forecast)}</div>
+        <div class="weather-hartford-current-brief">
+          <div class="weather-mini-icon weather-mini-icon-${escapeHtml(currentIcon.className)}" aria-label="${escapeHtml(currentIcon.label)}" title="${escapeHtml(currentIcon.label)}">${escapeHtml(currentIcon.symbol)}</div>
+          <div class="weather-hartford-current-summary">${escapeHtml(current.short_forecast)}</div>
+        </div>
         <div class="weather-hartford-current-detail">${escapeHtml(current.detail)}</div>
       </div>
       <div class="weather-city-panel">

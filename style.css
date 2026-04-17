@@ -757,6 +757,15 @@ body {
   margin-bottom: clamp(6px, 0.5vw, 8px);
 }
 
+.weather-hartford-current-brief {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: clamp(8px, 0.6vw, 10px);
+  padding-bottom: clamp(6px, 0.5vw, 8px);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
 .weather-hartford-current-summary,
 .weather-hartford-current-detail {
   color: rgba(242,242,242,0.76);
@@ -764,6 +773,11 @@ body {
   margin-bottom: clamp(6px, 0.5vw, 8px);
   font-size: clamp(13px, 1.02vw, 16px);
   overflow: visible;
+}
+
+.weather-hartford-current-summary {
+  margin-bottom: 0;
+  font-weight: 600;
 }
 
 .weather-hartford-current-detail {
@@ -803,6 +817,7 @@ body {
   font-size: clamp(18px, 1.5vw, 24px);
   line-height: 1;
   margin-bottom: 2px;
+  flex: 0 0 auto;
 }
 
 .weather-mini-icon-sun {
