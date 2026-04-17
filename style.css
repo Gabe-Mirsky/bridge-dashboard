@@ -807,18 +807,19 @@ body {
   overflow: hidden;
   border: 1px solid rgba(255,255,255,0.08);
   background: rgba(255,255,255,0.03);
-  margin-bottom: clamp(6px, 0.7vw, 10px);
   flex: 1 1 auto;
   min-height: 0;
+  display: flex;
 }
 
 .weather-outlook-image {
   display: block;
   width: 100%;
   height: 100%;
-  max-height: clamp(150px, 23vh, 245px);
-  object-fit: contain;
-  object-position: top center;
+  max-height: none;
+  flex: 1 1 auto;
+  object-fit: cover;
+  object-position: center top;
 }
 
 .weather-outlook-valid {
@@ -872,6 +873,6 @@ body {
   }
 
   .weather-outlook-image {
-    max-height: clamp(140px, 24vh, 220px);
+    max-height: none;
   }
 }
