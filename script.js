@@ -1233,8 +1233,8 @@ const Q4_ROTATE_INTERVAL = 20000;
 const Q4_TRANSITION_MS = 350;
 const Q4_VIEWS = [
   { type: "headlines" },
-  { type: "weather", key: "regional", label: "Regional 7-Day" },
   { type: "weather", key: "hartford", label: "Hartford Focus" },
+  { type: "weather", key: "regional", label: "Regional 7-Day" },
   { type: "weather", key: "outlook", label: "NOAA Outlooks" }
 ];
 
