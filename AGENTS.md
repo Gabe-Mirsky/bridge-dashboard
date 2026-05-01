@@ -1,5 +1,4 @@
 # Bridge Dashboard Agent Guide
-hello
 
 This file is for AI coding agents working in this repository.
 
