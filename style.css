@@ -1451,3 +1451,346 @@ body {
     max-height: clamp(180px, 30vh, 280px);
   }
 }
+
+/* ==============================
+   MOBILE APP MODE
+============================== */
+
+html.is-mobile,
+body.is-mobile {
+  height: auto;
+}
+
+html.is-mobile {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+body.is-mobile {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+body.is-mobile .header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  height: auto;
+  min-height: 0;
+  padding: 10px 12px 12px;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas:
+    "logo clock clock"
+    "title title title";
+  row-gap: 10px;
+}
+
+body.is-mobile .header-left {
+  grid-area: logo;
+}
+
+body.is-mobile .header-center {
+  grid-area: title;
+  text-align: left;
+}
+
+body.is-mobile .header-right {
+  grid-area: clock;
+}
+
+body.is-mobile .dashboard-title {
+  font-size: clamp(24px, 7vw, 34px);
+  letter-spacing: 0.4px;
+}
+
+body.is-mobile .logo {
+  height: clamp(28px, 8vw, 40px);
+}
+
+body.is-mobile #clock {
+  font-size: clamp(11px, 3vw, 14px);
+  text-align: right;
+}
+
+body.is-mobile #fullscreen-toggle {
+  display: none;
+}
+
+body.is-mobile .grid {
+  grid-template-columns: 1fr;
+  grid-template-rows: none;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  padding: 10px;
+  gap: 10px;
+}
+
+body.is-mobile .quadrant {
+  min-height: 0;
+}
+
+body.is-mobile #q1,
+body.is-mobile #q2,
+body.is-mobile #q3,
+body.is-mobile #q4 {
+  min-height: clamp(420px, 72svh, 760px);
+}
+
+body.is-mobile #q1,
+body.is-mobile #q3,
+body.is-mobile #q4 {
+  padding: 12px;
+}
+
+body.is-mobile #q2 {
+  padding: 12px;
+  gap: 10px;
+}
+
+body.is-mobile .quad-title,
+body.is-mobile .news-title,
+body.is-mobile .q2-title,
+body.is-mobile .q3-title {
+  font-size: clamp(18px, 5vw, 24px);
+  padding: 8px 12px;
+  letter-spacing: 0.5px;
+}
+
+body.is-mobile .title-row {
+  grid-template-columns: 1fr;
+  justify-items: start;
+  margin: 0 0 6px 0;
+  gap: 10px;
+}
+
+body.is-mobile #asset-name {
+  grid-column: auto;
+  justify-self: start;
+  font-size: clamp(24px, 8vw, 36px);
+  white-space: normal;
+  line-height: 1.05;
+}
+
+body.is-mobile #main-display {
+  flex: 0 0 auto;
+}
+
+body.is-mobile #main-center {
+  align-items: flex-start;
+  padding-top: 0;
+}
+
+body.is-mobile #price {
+  font-size: clamp(28px, 9vw, 42px);
+  line-height: 1.05;
+}
+
+body.is-mobile .price-inline-change {
+  display: inline-block;
+  margin-left: 0;
+  margin-top: 6px;
+  font-size: 0.5em;
+}
+
+body.is-mobile #ticker-panel {
+  flex: 1 1 auto;
+  padding: 0;
+}
+
+body.is-mobile .ticker-grid {
+  grid-template-columns: 1fr;
+  gap: 12px;
+  height: auto;
+}
+
+body.is-mobile .ticker-group {
+  margin-bottom: 0;
+}
+
+body.is-mobile .ticker-group-rows {
+  gap: 8px;
+}
+
+body.is-mobile .ticker-row {
+  grid-template-columns: minmax(0, 1.2fr) auto auto;
+  column-gap: 8px;
+  align-items: start;
+  font-size: clamp(13px, 3.4vw, 15px);
+  padding: 6px 4px;
+}
+
+body.is-mobile .ticker-percent {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-size: 0.92em;
+}
+
+body.is-mobile #ticker-refresh-timer {
+  margin-top: 10px;
+  padding-right: 0;
+}
+
+body.is-mobile .q1-shell-header {
+  grid-template-columns: 1fr;
+  justify-items: start;
+  row-gap: 8px;
+}
+
+body.is-mobile #q1-mode-title {
+  justify-self: start;
+  font-size: clamp(14px, 4vw, 18px);
+}
+
+body.is-mobile .q1-divider {
+  margin: 10px 0 14px 0;
+}
+
+body.is-mobile .q1-table-head,
+body.is-mobile .q1-table-row {
+  column-gap: 8px;
+}
+
+body.is-mobile .q1-table-head {
+  font-size: 10px;
+  letter-spacing: 0.4px;
+}
+
+body.is-mobile .q1-table-row {
+  font-size: clamp(12px, 3.4vw, 15px);
+  padding: 7px 2px;
+}
+
+body.is-mobile .q1-cell-right {
+  overflow-wrap: anywhere;
+}
+
+body.is-mobile .q1-grid-3 {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.85fr) minmax(0, 1.15fr);
+}
+
+body.is-mobile .q1-grid-4 {
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 1.1fr);
+}
+
+body.is-mobile #oil-gas-board {
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+body.is-mobile .energy-card {
+  padding: 10px;
+}
+
+body.is-mobile .energy-card-header {
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+body.is-mobile .energy-card-title {
+  font-size: clamp(12px, 3.4vw, 14px);
+  letter-spacing: 0.6px;
+}
+
+body.is-mobile .energy-row {
+  gap: 10px;
+  padding: 10px 8px;
+}
+
+body.is-mobile .energy-row + .energy-row {
+  margin-top: 6px;
+  padding-top: 10px;
+}
+
+body.is-mobile .energy-label {
+  font-size: clamp(15px, 4vw, 18px);
+}
+
+body.is-mobile .energy-meta,
+body.is-mobile .energy-change {
+  font-size: clamp(11px, 3vw, 13px);
+}
+
+body.is-mobile .energy-value {
+  font-size: clamp(17px, 4.8vw, 22px);
+}
+
+body.is-mobile #q4 {
+  overflow: visible;
+}
+
+body.is-mobile .q4-weather-header {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+body.is-mobile #weather-view-label {
+  font-size: 11px;
+  letter-spacing: 0.6px;
+}
+
+body.is-mobile #weather-rotator,
+body.is-mobile .weather-view {
+  overflow: visible;
+}
+
+body.is-mobile #news-container {
+  gap: 12px;
+  justify-content: flex-start;
+}
+
+body.is-mobile .news-item .news-time {
+  font-size: clamp(10px, 2.8vw, 12px);
+  margin-bottom: 4px;
+  padding-top: 0;
+}
+
+body.is-mobile .news-item a {
+  font-size: clamp(18px, 4.9vw, 24px);
+  line-height: 1.18;
+  padding-bottom: 10px;
+}
+
+body.is-mobile .weather-grid-two,
+body.is-mobile .weather-hartford-layout,
+body.is-mobile .weather-outlook-grid {
+  grid-template-columns: 1fr;
+  height: auto;
+}
+
+body.is-mobile .weather-city-panel,
+body.is-mobile .weather-hartford-today,
+body.is-mobile .weather-outlook-card {
+  padding: 10px;
+}
+
+body.is-mobile .weather-day-row {
+  grid-template-columns: minmax(48px, 0.92fr) minmax(42px, 0.72fr) 20px minmax(0, 1.6fr);
+  gap: 6px;
+  font-size: clamp(11px, 3vw, 13px);
+  padding: 6px 0;
+}
+
+body.is-mobile .weather-mini-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+body.is-mobile .weather-mini-card {
+  padding: 8px 6px;
+  gap: 3px;
+}
+
+body.is-mobile .weather-mini-name {
+  font-size: clamp(11px, 3vw, 13px);
+}
+
+body.is-mobile .weather-mini-temp {
+  font-size: clamp(15px, 4vw, 17px);
+}
+
+body.is-mobile .weather-mini-summary {
+  font-size: clamp(10px, 2.8vw, 11px);
+}

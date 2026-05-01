@@ -1779,7 +1779,7 @@ function startClock() {
 
     const time = now.toLocaleTimeString();
 
-    el.textContent = `${date} • ${time}`;
+    el.textContent = `${date} | ${time}`;
   }, 1000);
 }
 
@@ -1808,10 +1808,28 @@ function syncViewportDimensions() {
   root.style.setProperty("--viewport-height", `${height}px`);
 }
 
+function syncResponsiveMode() {
+  const body = document.body;
+  if (!body) return;
+  const root = document.documentElement;
+
+  // Treat narrow viewports as mobile, and also catch common touch devices that
+  // report a slightly wider width in portrait mode.
+  const isNarrowViewport = window.matchMedia("(max-width: 900px)").matches;
+  const isCoarseMobileLike =
+    window.matchMedia("(pointer: coarse)").matches &&
+    (window.innerWidth || 0) <= 1024;
+
+  const isMobile = isNarrowViewport || isCoarseMobileLike;
+  body.classList.toggle("is-mobile", isMobile);
+  root.classList.toggle("is-mobile", isMobile);
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   const btn = document.getElementById("fullscreen-toggle");
   if (btn) btn.addEventListener("click", toggleFullscreen);
   syncViewportDimensions();
+  syncResponsiveMode();
 });
 
 document.addEventListener("keydown", (e) => {
@@ -1820,6 +1838,7 @@ document.addEventListener("keydown", (e) => {
 
 window.addEventListener("resize", () => {
   syncViewportDimensions();
+  syncResponsiveMode();
   initTopRightQuadrantLayout();
   const currentView = Q4_VIEWS[currentQ4ViewIndex];
   if (currentView?.type === "weather") {
@@ -1830,6 +1849,7 @@ window.addEventListener("resize", () => {
 // When fullscreen changes, re-apply layout so Q2 is always correct
 document.addEventListener("fullscreenchange", () => {
   syncViewportDimensions();
+  syncResponsiveMode();
   initTopRightQuadrantLayout();
   const currentView = Q4_VIEWS[currentQ4ViewIndex];
   if (currentView?.type === "weather") {
@@ -1845,6 +1865,7 @@ document.addEventListener("fullscreenchange", () => {
 // keeps the dashboard structure stable even while APIs are still loading.
 initTopRightQuadrantLayout();
 syncViewportDimensions();
+syncResponsiveMode();
 startClock();
 
 updateAsset();
