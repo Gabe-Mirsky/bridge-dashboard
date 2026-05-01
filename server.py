@@ -639,14 +639,22 @@ def fetch_miso_daily_average(d):
         if node_col is None or type_col is None or value_col is None:
             return None
 
-        df = df[
+        base_df = df[
             df[node_col].astype(str).str.strip().str.upper().eq("ILLINOIS.HUB") &
-            df[type_col].astype(str).str.strip().str.upper().eq("HUB") &
-            df[value_col].astype(str).str.strip().str.upper().eq("LMP")
+            df[type_col].astype(str).str.strip().str.upper().eq("HUB")
         ]
 
-        if df.empty:
+        if base_df.empty:
             return None
+
+        value_series = base_df[value_col].astype(str).str.strip().str.upper()
+        lmp_df = base_df[
+            value_series.eq("LMP") |
+            value_series.str.contains("LMP", na=False) |
+            value_series.str.contains("EXPOST", na=False)
+        ]
+
+        df = lmp_df if not lmp_df.empty else base_df
 
         hour_cols = [
             c for c in df.columns
@@ -720,42 +728,62 @@ def fetch_ercot_daily_average(d):
             elif isinstance(doc, dict):
                 docs.append(doc)
 
-        # find document for THIS DAY
         target = d.strftime("%Y%m%d")
+        target_iso = d.isoformat()
+        target_us = f"{d.month}/{d.day}/{d.year}"
+
+        preferred_docs = []
+        fallback_docs = []
 
         for doc in docs:
-
             name = str(doc.get("ConstructedName", ""))
+            file_name = str(doc.get("FileName", ""))
+            combined = f"{name} {file_name}".lower()
 
-            if target not in name:
+            if ".csv" in combined or ".zip" in combined or "csv" in combined:
+                fallback_docs.append(doc)
+                if target in combined or target_iso in combined or target_us in combined:
+                    preferred_docs.append(doc)
+
+        candidate_docs = preferred_docs if preferred_docs else fallback_docs[:20]
+
+        for doc in candidate_docs:
+            doc_id = doc.get("DocID")
+            if not doc_id:
                 continue
-
-            if "csv" not in name.lower():
-                continue
-
-            doc_id = doc["DocID"]
 
             download_url = f"https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId={doc_id}"
-
             zip_resp = requests.get(download_url, timeout=30)
 
             with zipfile.ZipFile(io.BytesIO(zip_resp.content)) as z:
+                csv_candidates = [f for f in z.namelist() if f.lower().endswith(".csv")]
+                if not csv_candidates:
+                    continue
 
-                csv_file = [f for f in z.namelist() if f.endswith(".csv")][0]
+                csv_file = csv_candidates[0]
 
                 with z.open(csv_file) as f:
                     df = pd.read_csv(f)
 
-            df = df[df["SettlementPoint"] == "HB_NORTH"]
+            if "SettlementPoint" not in df.columns or "SettlementPointPrice" not in df.columns:
+                continue
 
-            df["SettlementPointPrice"] = pd.to_numeric(
-                df["SettlementPointPrice"], errors="coerce"
-            )
+            date_col = None
+            for candidate in ("DeliveryDate", "OperatingDate", "TradeDate"):
+                if candidate in df.columns:
+                    date_col = candidate
+                    break
 
+            if date_col is not None:
+                parsed_dates = pd.to_datetime(df[date_col], errors="coerce")
+                df = df[parsed_dates.dt.date == d]
+
+            df = df[df["SettlementPoint"].astype(str).str.strip().str.upper().eq("HB_NORTH")]
+            df["SettlementPointPrice"] = pd.to_numeric(df["SettlementPointPrice"], errors="coerce")
             df = df.dropna(subset=["SettlementPointPrice"])
 
             if df.empty:
-                return None
+                continue
 
             return float(df["SettlementPointPrice"].mean())
 
@@ -885,6 +913,7 @@ def electric_background_worker():
     while True:
         try:
             ELECTRIC_CACHE["data"] = build_electric()
+            ELECTRIC_CACHE["last_update"] = datetime.now()
             print("Electric cache refreshed.")
         except Exception as e:
             print("Electric refresh error:", e)
@@ -939,8 +968,15 @@ def start_electric_background():
 
 @app.get("/electric")
 def get_electric():
-    if ELECTRIC_CACHE["data"] is None:
+    now = datetime.now()
+
+    if (
+        ELECTRIC_CACHE["data"] is None or
+        ELECTRIC_CACHE["last_update"] is None or
+        (now - ELECTRIC_CACHE["last_update"]).seconds > 3600
+    ):
         ELECTRIC_CACHE["data"] = build_electric()
+        ELECTRIC_CACHE["last_update"] = now
     return ELECTRIC_CACHE["data"]
 
 
