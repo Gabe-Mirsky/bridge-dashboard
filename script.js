@@ -125,8 +125,8 @@ function initTopRightQuadrantLayout() {
     }
   }
 
-  // Re-apply layout styles every time
-  q2.style.display = "flex";
+  // Layout styling for Q2 now lives in style.css so it can scale relative to screen size.
+  return;
   q2.style.flexDirection = "column";
   q2.style.justifyContent = "flex-start";
   q2.style.alignItems = "stretch";
@@ -211,21 +211,17 @@ function ensureQ1Shell(modeTitleText) {
   const inner = q1.querySelector(".quad-inner");
   if (!inner) return null;
 
-  inner.style.display = "flex";
-  inner.style.flexDirection = "column";
-  inner.style.height = "100%";
-
   if (!inner.querySelector("#q1-shell")) {
     inner.innerHTML = `
-      <div id="q1-shell" style="display:flex;flex-direction:column;height:100%;">
-        <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;margin-bottom:10px;">
+      <div id="q1-shell">
+        <div class="q1-shell-header">
           <div class="quad-title" style="margin-bottom:0;justify-self:start;">
             Power Markets
           </div>
-          <div id="q1-mode-title" style="font-size:20px;letter-spacing:2px;text-transform:uppercase;opacity:0.7;font-weight:500;justify-self:center;transition:opacity ${Q1_FADE_MS}ms ease;"></div>
+          <div id="q1-mode-title"></div>
           <div></div>
         </div>
-        <div id="q1-fade-content" style="display:flex;flex-direction:column;flex:1;opacity:1;transition:opacity ${Q1_FADE_MS}ms ease;"></div>
+        <div id="q1-fade-content" class="q1-fade-content"></div>
       </div>
     `;
   }
@@ -237,6 +233,135 @@ function ensureQ1Shell(modeTitleText) {
   return fadeContent || null;
 }
 
+function q1DividerHtml() {
+  return `<div class="q1-divider"></div>`;
+}
+
+function q1EmptyHtml(message) {
+  return `<div class="q1-empty">${message}</div>`;
+}
+
+function renderHenryHubHtml(data) {
+  let html = q1DividerHtml();
+
+  if (data && Array.isArray(data.contracts) && data.contracts.length > 0) {
+    html += `
+      <div class="q1-table-head q1-grid-3">
+        <div>Contract Month</div>
+        <div class="q1-cell-center">Settle ($/MMBtu)</div>
+        <div class="q1-cell-right">Daily Change ($, %)</div>
+      </div>
+      <div class="q1-table-rows">
+    `;
+
+    data.contracts.slice(0, 6).forEach(c => {
+      const price = Number(c?.price ?? 0);
+      const change = Number(c?.change ?? 0);
+      const percent = Number(c?.percent ?? 0);
+      const isUp = change >= 0;
+      const arrow = isUp ? "&#9650;" : "&#9660;";
+      const color = isUp ? "#00ff7f" : "#ff4c4c";
+
+      html += `
+        <div class="q1-table-row q1-grid-3">
+          <div class="q1-cell-strong">${c?.month ?? "--"}</div>
+          <div class="q1-cell-center">$${price.toFixed(3)}</div>
+          <div class="q1-cell-right" style="color:${color};">
+            <span class="q1-change-arrow">${arrow}</span>
+            $${Math.abs(change).toFixed(3)} (${Math.abs(percent).toFixed(2)}%)
+          </div>
+        </div>
+      `;
+    });
+
+    html += `</div>`;
+  } else {
+    html += q1EmptyHtml("No gas data available");
+  }
+
+  latestHenryHubHtml = html;
+  return html;
+}
+
+function normalizeElectricMarketDisplay(m) {
+  const name = m?.name ?? "--";
+  const price = Number(m?.price ?? 0);
+  const change = Number(m?.change ?? 0);
+  const percent = Number(m?.percent ?? 0);
+  let iso = name;
+  let hub = "--";
+
+  if (typeof m?.iso === "string" && m.iso.trim()) iso = m.iso.trim();
+  if (typeof m?.hub === "string" && m.hub.trim()) hub = m.hub.trim();
+
+  if (hub === "--") {
+    const match = name.match(/^(.*?)\s*\((.*?)\)\s*$/);
+    if (match) {
+      iso = match[1].trim();
+      hub = match[2].trim();
+    }
+  }
+
+  if (hub === "--") {
+    if (/ISO[\s-]?NE|ISO New England/i.test(name)) {
+      iso = "ISO-NE";
+      hub = "Internal Hub";
+    } else if (/MISO/i.test(name)) {
+      iso = "MISO";
+      hub = "Illinois Hub";
+    } else if (/ERCOT/i.test(name)) {
+      iso = "ERCOT";
+      hub = "HB North";
+    }
+  }
+
+  return { iso, hub, price, change, percent };
+}
+
+function renderElectricHtml(data) {
+  let html = q1DividerHtml();
+
+  html += `
+    <div class="q1-table-head q1-grid-4 q1-table-head--electric">
+      <div>ISO</div>
+      <div>Trading Hub</div>
+      <div class="q1-cell-center">MTD Avg DA ($/MWh)</div>
+      <div class="q1-cell-right">MoM Change ($, %)</div>
+    </div>
+  `;
+
+  if (!data || !Array.isArray(data.markets) || data.markets.length === 0) {
+    html += q1EmptyHtml("Electric data unavailable");
+    latestElectricHtml = html;
+    return html;
+  }
+
+  html += `<div class="q1-table-rows">`;
+  data.markets.forEach(m => {
+    const { iso, hub, price, change, percent } = normalizeElectricMarketDisplay(m);
+    const isUp = change >= 0;
+    const color = isUp ? "#00ff7f" : "#ff4c4c";
+    const arrow = isUp ? "&#9650;" : "&#9660;";
+    const deltaDollars = `$${Math.abs(change).toFixed(2)}`;
+    const deltaPercent = `${Math.abs(percent).toFixed(2)}%`;
+
+    html += `
+      <div class="q1-table-row q1-grid-4">
+        <div class="q1-cell-strong">${iso}</div>
+        <div class="q1-cell-strong">${hub}</div>
+        <div class="q1-cell-center">$${price.toFixed(2)}</div>
+        <div class="q1-cell-right" style="color:${color};">
+          <span class="q1-change-arrow">${arrow}</span>${deltaDollars} (${deltaPercent})
+        </div>
+      </div>
+    `;
+  });
+
+  html += `</div>`;
+  latestElectricHtml = html;
+  return html;
+}
+
 async function updateHenryHub() {
   try {
     const res = await fetch(HENRY_API, { cache: "no-store" });
@@ -244,6 +369,9 @@ async function updateHenryHub() {
 
     const content = ensureQ1Shell("Henry Hub Futures");
     if (!content) return;
+
+    content.innerHTML = renderHenryHubHtml(data);
+    return;
 
     let html = `
       <div style="
@@ -394,6 +522,9 @@ async function updateElectric() {
       throw new Error("Invalid JSON response");
     }
 
+    content.innerHTML = renderElectricHtml(data);
+    return;
+
     if (!data || !Array.isArray(data.markets) || data.markets.length === 0) {
       html += `
         <div style="flex:1;display:flex;align-items:center;justify-content:center;opacity:0.65;font-size:18px;">
@@ -465,12 +596,7 @@ async function updateElectric() {
 
     const content = ensureQ1Shell("Electric");
     if (content) {
-      const fallbackHtml = `
-        <div style="height:1px;background:rgba(255,255,255,0.08);margin:12px 0 18px 0;"></div>
-        <div style="flex:1;display:flex;align-items:center;justify-content:center;opacity:0.65;font-size:18px;">
-          Electric data unavailable
-        </div>
-      `;
+      const fallbackHtml = renderElectricHtml(null);
       latestElectricHtml = fallbackHtml;
       content.innerHTML = fallbackHtml;
     }
@@ -483,6 +609,8 @@ async function buildHenryHubHtmlForRotation() {
   if (latestHenryHubHtml) return latestHenryHubHtml;
   const res = await fetch(HENRY_API, { cache: "no-store" });
   const data = await res.json();
+
+  return renderHenryHubHtml(data);
 
   let html = `
     <div style="
@@ -570,6 +698,12 @@ async function buildHenryHubHtmlForRotation() {
 
 async function buildElectricHtmlForRotation() {
   if (latestElectricHtml) return latestElectricHtml;
+  const res = await fetch("/electric", { cache: "no-store" });
+  if (!res.ok) throw new Error("HTTP status " + res.status);
+  const data = await res.json();
+
+  return renderElectricHtml(data);
+
   let html = `
     <div style="height:1px;background:rgba(255,255,255,0.08);margin:12px 0 18px 0;"></div>
     <div style="
@@ -593,10 +727,6 @@ async function buildElectricHtmlForRotation() {
       <div style="text-align:right;">MoM Change ($, %)</div>
     </div>
   `;
-
-  const res = await fetch("/electric", { cache: "no-store" });
-  if (!res.ok) throw new Error("HTTP status " + res.status);
-  const data = await res.json();
 
   if (!data || !Array.isArray(data.markets) || data.markets.length === 0) {
     html += `
@@ -701,7 +831,7 @@ async function updateAsset() {
   if (priceEl) {
     priceEl.innerHTML = `
       <span>$${formattedPrice}</span>
-      <span style="color:${color}; margin-left:1px; font-size:0.6em;">
+      <span class="price-inline-change" style="color:${color};">
         ${arrow} $${Math.abs(changeDollar).toFixed(2)} (${Math.abs(change).toFixed(2)}%)
       </span>
     `;
@@ -816,14 +946,10 @@ function updateTickerPanel() {
       const percent = data ? `${arrow} $${Math.abs(changeDollar).toFixed(2)} (${Math.abs(change).toFixed(2)}%)` : "--";
 
       rows += `
-        <div
-          class="ticker-row"
-          data-symbol="${asset.symbol}"
-          style="display:grid; grid-template-columns:minmax(0, 1.15fr) minmax(88px, 0.8fr) minmax(138px, 1fr); column-gap:10px; align-items:center; font-size:13px; line-height:1.15; padding:4px 3px; border-radius:4px;"
-        >
-          <span style="min-width:0;">${asset.name}</span>
-          <span class="ticker-price" style="text-align:right;">$${price}</span>
-          <span class="ticker-percent" style="color:${color}; text-align:right; white-space:nowrap;">
+        <div class="ticker-row" data-symbol="${asset.symbol}">
+          <span class="ticker-name">${asset.name}</span>
+          <span class="ticker-price">$${price}</span>
+          <span class="ticker-percent" style="color:${color};">
             ${percent}
           </span>
         </div>
@@ -831,22 +957,9 @@ function updateTickerPanel() {
     });
 
     return `
-      <div style="margin-bottom:12px;">
-        <div
-          style="
-            font-size:12px;
-            font-weight:600;
-            letter-spacing:1px;
-            padding:4px 0;
-            margin-bottom:6px;
-            border-top:1px solid rgba(255,255,255,0.08);
-            border-bottom:1px solid rgba(255,255,255,0.08);
-            color:#bbbbbb;
-          "
-        >
-          ${title}
-        </div>
-        <div style="display:flex; flex-direction:column; gap:7px;">
+      <div class="ticker-group">
+        <div class="ticker-group-title">${title}</div>
+        <div class="ticker-group-rows">
           ${rows}
         </div>
       </div>
@@ -854,12 +967,12 @@ function updateTickerPanel() {
   }
 
   panel.innerHTML = `
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px; height:100%; min-height:0; align-items:start;">
-      <div style="display:flex; flex-direction:column; justify-content:space-between; min-height:0;">
+    <div class="ticker-grid">
+      <div class="ticker-column ticker-column--spaced">
         ${renderGroup("Indices", grouped["Indices"])}
         ${renderGroup("Metals", grouped["Metals"])}
       </div>
-      <div style="display:flex; flex-direction:column; justify-content:flex-start; min-height:0;">
+      <div class="ticker-column ticker-column--start">
         ${renderGroup("Big Stocks", grouped["Big Stocks"])}
       </div>
     </div>
