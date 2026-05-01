@@ -8,7 +8,7 @@ Assume the human maintainer using this repo:
 
 - has access to this repository locally
 - has GitHub access to the repo
-- is working in the GitHub repo `Gabe-Mirsky/bridge-dashboard`
+- is working in a local clone of the GitHub repo `Gabe-Mirsky/bridge-dashboard`
 - is an Oracle Cloud Identity Domain Administrator in the relevant Oracle account
 - has the SSH private key needed to log into the Oracle VM
 
