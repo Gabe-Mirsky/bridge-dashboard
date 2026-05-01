@@ -1705,17 +1705,38 @@ function toggleFullscreen() {
   }
 }
 
+function syncViewportDimensions() {
+  const width = window.innerWidth || document.documentElement.clientWidth || 0;
+  const height = window.innerHeight || document.documentElement.clientHeight || 0;
+  const root = document.documentElement;
+
+  root.style.setProperty("--viewport-width", `${width}px`);
+  root.style.setProperty("--viewport-height", `${height}px`);
+
+  const readout = document.getElementById("viewport-readout");
+  if (readout) {
+    readout.textContent = `${width} x ${height}`;
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   const btn = document.getElementById("fullscreen-toggle");
   if (btn) btn.addEventListener("click", toggleFullscreen);
+  syncViewportDimensions();
 });
 
 document.addEventListener("keydown", (e) => {
   if (e.key && e.key.toLowerCase() === "f") toggleFullscreen();
 });
 
+window.addEventListener("resize", () => {
+  syncViewportDimensions();
+  initTopRightQuadrantLayout();
+});
+
 // When fullscreen changes, re-apply layout so Q2 is always correct
 document.addEventListener("fullscreenchange", () => {
+  syncViewportDimensions();
   initTopRightQuadrantLayout();
 });
 
@@ -1724,6 +1745,7 @@ document.addEventListener("fullscreenchange", () => {
    ========================================================= */
 
 initTopRightQuadrantLayout();
+syncViewportDimensions();
 startClock();
 
 updateAsset();

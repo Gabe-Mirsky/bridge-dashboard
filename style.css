@@ -124,6 +124,14 @@ body {
   color: var(--text);
 }
 
+#viewport-readout {
+  margin-left: var(--space-xl);
+  font-size: clamp(10px, 0.68vw, 12px);
+  color: rgba(242,242,242,0.52);
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
 #fullscreen-toggle {
   margin-left: clamp(10px, 0.78vw, 15px);
   font-size: clamp(12px, 0.73vw, 14px);
@@ -229,12 +237,12 @@ body {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  margin-top: clamp(8px, 0.8vw, 10px);
-  margin-left: clamp(10px, 1vw, 15px);
-  margin-right: clamp(12px, 1.1vw, 18px);
+  margin-top: var(--space-md);
+  margin-left: clamp(10px, 0.78vw, 15px);
+  margin-right: var(--space-2xl);
 }
 .q2-title {
-  padding: 6px 14px;
+  padding: var(--space-sm) var(--space-xl);
   font-size: var(--title-chip-size);
   font-weight: 600;
   letter-spacing: 1px;
@@ -253,7 +261,7 @@ body {
   content:"";
   display:block;
   height: 3px;
-  margin-top: 6px;
+  margin-top: var(--space-sm);
   border-radius: 2px;
   background: linear-gradient(90deg, var(--brand-blue), var(--brand-green));
   opacity: 0.9;
@@ -275,7 +283,7 @@ body {
 
 #price {
   font-size: clamp(28px, 2.6vw, 40px);
-  margin: 4px 0;
+  margin: var(--space-xs) 0;
   font-weight: 100;
 }
 
