@@ -1,3 +1,10 @@
+"""FastAPI backend for the Bridge Markets Dashboard.
+
+This app serves the single-page dashboard shell, exposes JSON endpoints that the
+browser polls on a schedule, and handles the lightweight GitHub webhook used by
+the Oracle auto-deploy flow.
+"""
+
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -50,6 +57,8 @@ app.mount("/static", StaticFiles(directory=BASE_DIR), name="static")
 
 @app.get("/")
 def get_index():
+    # Cache-bust CSS/JS automatically so wallboard browsers pick up edits
+    # without requiring anyone to manually clear browser caches.
     index_path = BASE_DIR / "index.html"
     html = index_path.read_text(encoding="utf-8")
 
@@ -68,6 +77,7 @@ def get_index():
     return HTMLResponse(html)
 
 def _verify_github_signature(payload: bytes, signature_header: str | None) -> bool:
+    # Reject unsigned or incorrectly signed GitHub webhooks before any deploy work.
     if not GITHUB_WEBHOOK_SECRET or not signature_header:
         return False
 
@@ -79,6 +89,7 @@ def _verify_github_signature(payload: bytes, signature_header: str | None) -> bo
     return hmac.compare_digest(expected, signature_header)
 
 def _run_deploy_script() -> dict:
+    # Synchronous deploy helper kept mainly for manual debugging.
     if not DEPLOY_SCRIPT_PATH.exists():
         raise FileNotFoundError(f"Deploy script not found: {DEPLOY_SCRIPT_PATH}")
 
@@ -101,6 +112,8 @@ def _run_deploy_script() -> dict:
     }
 
 def _launch_deploy_script() -> None:
+    # Production deploys run in the background so GitHub is not blocked waiting
+    # for `git pull` and service restart work to finish.
     if not DEPLOY_SCRIPT_PATH.exists():
         raise FileNotFoundError(f"Deploy script not found: {DEPLOY_SCRIPT_PATH}")
 
@@ -125,6 +138,7 @@ async def github_webhook(
     x_github_event: str | None = Header(default=None),
     x_hub_signature_256: str | None = Header(default=None),
 ):
+    # Only signed push events for the configured branch should trigger deploys.
     payload = await request.body()
 
     if not _verify_github_signature(payload, x_hub_signature_256):
@@ -157,6 +171,7 @@ async def github_webhook(
 # CACHE
 # =========================================================
 
+# These short-lived in-memory caches smooth out frequent dashboard polling.
 cache = {}
 news_cache = {"data": None, "timestamp": 0}
 event_watch_cache = {"data": None, "timestamp": 0}
@@ -176,6 +191,7 @@ PENTAGON_LAT = 38.8719
 PENTAGON_LON = -77.0563
 
 def haversine_miles(lat1, lon1, lat2, lon2):
+    """Distance helper used by the event-watch / geo logic."""
     R = 3958.8
     phi1 = math.radians(lat1)
     phi2 = math.radians(lat2)
@@ -190,7 +206,7 @@ def haversine_miles(lat1, lon1, lat2, lon2):
 
     return 2 * R * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
-# Hardcoded stable coordinates (from Google maps once)
+# Hardcoded stable coordinates avoid depending on live geocoding for fixed places.
 PIZZA_COORDS = {
     "ChIJcYireCe3t4kR4d9trEbGYjc": (38.8602396, -77.0559854),
     "ChIJ42QeLXu3t4kRnArvcaz2o3A": (38.8527414, -77.0531408),
@@ -241,6 +257,8 @@ NOAA_OUTLOOK_SOURCES = [
 ]
 
 def _direct_get(url, headers=None, timeout=10):
+    # Ignore proxy environment variables so weather/NOAA calls behave the same
+    # locally and on the Oracle VM.
     session = requests.Session()
     session.trust_env = False
     return session.get(url, headers=headers, timeout=timeout)
@@ -357,6 +375,7 @@ ELECTRIC_DEBUG = True
 # ---------------------------------------------------------
 
 def _load_json(file):
+    """Read a JSON file defensively and fall back to an empty object."""
     if not os.path.exists(file):
         return {}
     try:
@@ -369,25 +388,15 @@ def _load_json(file):
         return {}
 
 def _save_json(file, data):
+    """Persist JSON with stable formatting so history files stay diff-friendly."""
     with open(file, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
 # ---------------------------------------------------------
 # MONTH HELPERS
-# File format:
-# {
-#   "name": "ISONE",
-#   "current_month": "2026-03",
-#   "prior_month": "2026-02",
-#   "data": {
-#       "2026-02": {
-#           "2026-02-01": 31.22
-#       },
-#       "2026-03": {
-#           "2026-03-01": 44.18
-#       }
-#   }
-# }
+# Electric history files intentionally keep only the current month and the
+# immediately prior month. That is all Q1 needs for its MTD-vs-prior-month
+# comparison, and it keeps the JSON files small and easy to inspect.
 # ---------------------------------------------------------
 
 def _month_str(d):
@@ -419,6 +428,8 @@ def _empty_monthly_history(name):
     }
 
 def _load_or_reset_two_month_history(file, name):
+    # Roll stale history files forward to the current/prior month pair while
+    # preserving any data already collected for those exact month keys.
     history = _load_json(file)
 
     if not isinstance(history, dict):
@@ -465,6 +476,7 @@ def _load_or_reset_two_month_history(file, name):
     return new_history
 
 def _month_ranges_to_fill():
+    # Backfill the prior month plus the current month up through today.
     today = date.today()
     current_start = _current_month_start()
     prior_start = _prior_month_start()
@@ -476,6 +488,8 @@ def _month_ranges_to_fill():
     ]
 
 def _electric_debug(message):
+    # Centralized debug hook so temporary electric logging can be disabled in
+    # one place after the feed issues are stable again.
     if ELECTRIC_DEBUG:
         print(f"[electric-debug] {message}")
 
@@ -484,9 +498,11 @@ def _electric_debug(message):
 # ---------------------------------------------------------
 
 def _clean_col_name(name):
+    # Normalize third-party CSV headers whose capitalization and punctuation drift.
     return re.sub(r"[^a-z0-9]+", "", str(name).strip().lower())
 
 def _find_actual_column(df, aliases):
+    # Match a real dataframe column against a list of expected header aliases.
     alias_set = {_clean_col_name(a) for a in aliases}
     for col in df.columns:
         if _clean_col_name(col) in alias_set:
@@ -494,6 +510,7 @@ def _find_actual_column(df, aliases):
     return None
 
 def _find_header_row_by_aliases(text, alias_groups, max_scan_rows=80):
+    # Some market exports prepend metadata rows before the real CSV header.
     lines = text.splitlines()
 
     for i, line in enumerate(lines[:max_scan_rows]):
@@ -519,6 +536,8 @@ def _find_header_row_by_aliases(text, alias_groups, max_scan_rows=80):
     return None
 
 def _load_csv_with_dynamic_header(text, alias_groups):
+    # Try a few parse strategies after locating the likely header row so the
+    # parser can survive minor upstream format changes.
     header_row = _find_header_row_by_aliases(text, alias_groups)
     if header_row is None:
         raise ValueError("Could not locate header row")
@@ -561,6 +580,8 @@ def _load_csv_with_dynamic_header(text, alias_groups):
 # =========================================================
 
 def fetch_isone_daily_average(d):
+    # ISO-NE publishes hourly rows for the requested day; average them into one
+    # hub value so Q1 can show a clean month-to-date comparison.
     ymd = d.strftime("%Y%m%d")
     url = f"http://www.iso-ne.com/histRpts/da-lmp/WW_DALMP_ISO_{ymd}.csv"
 
@@ -599,6 +620,7 @@ def fetch_isone_daily_average(d):
         return None
 
 def update_iso_history():
+    # Fill any missing days in the rolling two-month ISO-NE history window.
     history = _load_or_reset_two_month_history(ISO_FILE, "ISONE")
     data = history["data"]
     updated = False
@@ -634,6 +656,8 @@ def update_iso_history():
 # =========================================================
 
 def fetch_miso_daily_average(d):
+    # MISO file headers and row labels drift over time, so this parser is
+    # intentionally tolerant about where it finds Illinois Hub / LMP values.
     ymd = d.strftime("%Y%m%d")
     url = f"https://docs.misoenergy.org/marketreports/{ymd}_da_expost_lmp.csv"
 
@@ -699,6 +723,7 @@ def fetch_miso_daily_average(d):
         return None
 
 def update_miso_history():
+    # Fill any missing days in the rolling two-month MISO history window.
     history = _load_or_reset_two_month_history(MISO_FILE, "MISO")
     data = history["data"]
     updated = False
@@ -734,6 +759,8 @@ def update_miso_history():
 # =========================================================
 
 def fetch_ercot_daily_average(d):
+    # ERCOT publishes a doc listing plus downloadable ZIP/CSV files. We select
+    # likely candidates, filter to the requested date, then average HB_NORTH.
 
     try:
 
@@ -818,6 +845,7 @@ def fetch_ercot_daily_average(d):
 
 
 def update_ercot_history():
+    # Fill any missing days in the rolling two-month ERCOT history window.
 
     history = _load_or_reset_two_month_history(ERCOT_FILE, "ERCOT")
 
@@ -862,12 +890,16 @@ def update_ercot_history():
 # =========================================================
 
 def build_electric():
+    # Build the exact payload shape expected by script.js. Keep each market
+    # present even when a source is unavailable so the UI does not jump around.
     _electric_debug("Starting electric rebuild")
     iso = update_iso_history()
     miso = update_miso_history()
     ercot = update_ercot_history()
 
     def compute(history, name, hub):
+        # Convert raw daily history into the month-to-date average and
+        # prior-month comparison displayed in Q1.
         if not isinstance(history, dict):
             return {
                 "name": name,
@@ -936,6 +968,8 @@ def build_electric():
     }
 
 def electric_background_worker():
+    # Refresh electric data in the background so the endpoint can usually return
+    # immediately without blocking on three external market fetches.
     while True:
         try:
             ELECTRIC_CACHE["data"] = build_electric()
@@ -955,6 +989,8 @@ def start_electric_background():
 
 @app.get("/electric")
 def get_electric():
+    # Safety net: if the background worker has not refreshed recently, rebuild
+    # on demand instead of serving stale month data forever.
     now = datetime.now()
 
     if (
@@ -972,6 +1008,8 @@ def get_electric():
 # =========================================================
 
 def fetch_from_yahoo(symbol: str):
+    # Try the cleanest Yahoo response first, then fall back through alternate
+    # yfinance shapes so Q2 and Q3 can stay populated when one path is sparse.
     ticker = yf.Ticker(symbol)
     info = ticker.info or {}
 
@@ -1061,6 +1099,7 @@ def _normalize_forecast_period(period):
     }
 
 def _fetch_nws_city_forecast(city_name, lat, lon):
+    # Two-step NWS lookup: coordinates -> forecast URL -> normalized daily rows.
     points_url = f"https://api.weather.gov/points/{lat},{lon}"
 
     points_resp = _direct_get(points_url, headers=NWS_HEADERS, timeout=10)
@@ -1167,6 +1206,8 @@ def _select_noaa_image_url(base_url: str, html: str, source_key: str, fallback_u
     return fallback_url
 
 def _fetch_noaa_outlook(source):
+    # NOAA outlook pages are semi-structured HTML, so pick the most likely image
+    # and return only the metadata Q4 needs to render it.
     response = _direct_get(
         source["url"],
         headers={"User-Agent": NWS_HEADERS["User-Agent"]},
@@ -1206,6 +1247,8 @@ def _fetch_noaa_outlook(source):
 
 @app.get("/weather-dashboard")
 def get_weather_dashboard():
+    # Bundle city forecasts plus longer-range NOAA outlooks into one payload so
+    # Q4 can rotate views without multiple endpoint round trips.
     now = time.time()
 
     if (
@@ -1293,6 +1336,7 @@ STOPWORDS = {
 WORD_RE = re.compile(r"[a-z0-9']+")
 
 def headline_score(title: str) -> int:
+    # Lightweight keyword scoring tuned for market-moving business headlines.
     lower = title.lower()
     score = 0
     for word, weight in STRONG_KEYWORDS.items():
@@ -1317,6 +1361,8 @@ def jaccard_overlap(a, b):
 
 @app.get("/news")
 def get_news():
+    # Pull recent CNBC RSS items, score them, dedupe near-duplicates, and keep
+    # the strongest few for Q4's headline rotation.
     now = time.time()
 
     if news_cache["data"] and now - news_cache["timestamp"] < CACHE_DURATION:
@@ -1397,6 +1443,8 @@ PIZZINT_DOOMSDAY_API = "https://www.pizzint.watch/api/neh-index/doomsday"
 
 @app.get("/event-watch")
 def get_event_watch():
+    # Event Watch is a custom panel whose logic lives here because it mixes feed
+    # data, date handling, and domain-specific ranking rules.
     now = time.time()
 
     if event_watch_cache["data"] and now - event_watch_cache["timestamp"] < EVENT_CACHE_DURATION:
@@ -1505,6 +1553,8 @@ def get_event_watch():
 EIA_GAS_DIESEL_URL = "https://www.eia.gov/petroleum/gasdiesel/"
 
 def _extract_eia_text_lines(raw_html: str):
+    # The EIA page is not a clean API, so reduce the HTML to text fragments that
+    # are easier to pattern-match for weekly U.S. averages.
     cleaned = re.sub(r"(?is)<script.*?</script>", " ", raw_html)
     cleaned = re.sub(r"(?is)<style.*?</style>", " ", cleaned)
     cleaned = re.sub(r"(?s)<[^>]+>", "\n", cleaned)
@@ -1551,6 +1601,8 @@ def _extract_us_average_from_lines(lines, heading_text: str):
     }
 
 def fetch_retail_fuel_averages():
+    # Pull both gasoline and diesel from the same weekly EIA page so Q3 can
+    # render a single consistent "retail fuels" card.
     response = requests.get(
         EIA_GAS_DIESEL_URL,
         headers={"User-Agent": "Mozilla/5.0"},
@@ -1568,6 +1620,7 @@ def fetch_retail_fuel_averages():
     return {"gasoline": gasoline, "diesel": diesel}
 
 def fetch_market_quote(symbol: str):
+    # Shared futures/commodity quote loader for Q3's WTI and Brent cards.
     ticker = yf.Ticker(symbol)
     info = ticker.info or {}
 
@@ -1626,6 +1679,8 @@ def fetch_market_quote(symbol: str):
 
 @app.get("/oil-gas-board")
 def get_oil_gas_board():
+    # Combine retail fuel averages with live futures so Q3 can refresh from one
+    # compact payload instead of coordinating several frontend calls.
     now = time.time()
 
     if oil_gas_cache["data"] and now - oil_gas_cache["timestamp"] < OIL_GAS_CACHE_DURATION:

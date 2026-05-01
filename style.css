@@ -1,8 +1,9 @@
 /* ==============================
-   BRAND THEME (Bridge)
-   Goal: Keep it readable + TV-ready while still feeling on-brand.
-   Uses brand colors as accents (header + frame + subtle lines),
-   not as full-saturation backgrounds everywhere.
+   Bridge dashboard theme
+   This file is intentionally desktop/TV-first. Most sizes now flow through
+   CSS custom properties so the dashboard can scale more gracefully as the
+   viewport changes, while script.js focuses on data/rendering instead of
+   hand-placing layout values.
 ============================== */
 
 /* =========================================================
@@ -23,6 +24,8 @@ html, body {
 
 
 :root{
+  /* Global spacing and typography tokens. These are the main knobs to adjust
+     when the dashboard needs to feel roomier or denser across the whole page. */
   --brand-blue: #003c6b;
   --brand-green: #037645;
   --header-h: clamp(54px, 6vh, 72px);
@@ -529,6 +532,8 @@ body {
   opacity: 0.65;
 }
 
+/* Q2 ticker uses a two-column shell: left stacks Indices + Metals, right holds
+   Big Stocks. The columns intentionally distribute space differently. */
 .ticker-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1124,6 +1129,8 @@ body {
   text-overflow: clip;
 }
 
+/* Q4 switches into compact/condensed modes when script.js detects that the
+   weather stage is too small for the default desktop treatment. */
 .weather-view--compact .weather-grid-two,
 .weather-view--compact.weather-grid-two,
 .weather-view--compact.weather-hartford-layout {

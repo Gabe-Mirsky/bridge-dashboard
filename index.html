@@ -8,6 +8,7 @@
 </head>
 <body>
 
+  <!-- Fixed header: brand, live clock, and fullscreen toggle -->
   <div class="header"> 
     <div class="header-left">
       <img src="/static/bridge-logo.png" class="logo">
@@ -19,7 +20,7 @@
 
     <div class="header-right">
       <div id="clock"></div>
-      <div id="fullscreen-toggle">
+      <div id="fullscreen-toggle" aria-label="Toggle fullscreen" title="Toggle fullscreen">
       ⛶
     </div>
     </div>
@@ -27,20 +28,20 @@
 
   <div class="grid">
 
-    <!-- Q1 -->
+    <!-- Q1: power markets; content is mostly injected by script.js -->
     <div class="quadrant" id="q1">
       <div class="quad-inner">
         <div class="quad-title">Power Markets</div>
       </div>
     </div>
-    <!-- Q2 -->
+    <!-- Q2: large rotating quote plus categorized ticker grid -->
     <div class="quadrant main" id="q2"> 
       <div class="title-row"> 
         <div class="q2-title">Market Snapshot</div> 
         <h1 id="asset-name">SPY</h1> </div> 
         <div id="price">$0.00</div> 
         <div id="change">0.00%</div> </div>
-    <!-- Q3 -->
+    <!-- Q3: oil and fuel cards are rendered from /oil-gas-board -->
     <div class="quadrant" id="q3">
       <div class="quad-inner">
 
@@ -51,7 +52,7 @@
 
       </div>
     </div>
-    <!-- Q4 -->
+    <!-- Q4: rotates between headlines and weather views -->
     <div class="quadrant" id="q4">
       <div id="q4-headlines-shell" class="q4-view-shell active">
         <div class="news-title">Latest Headlines</div>

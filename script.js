@@ -38,6 +38,13 @@ let q1TransitionInFlight = false;
 const Q1_FADE_MS = 350;
 let latestHenryHubHtml = "";
 let latestElectricHtml = "";
+const UP_ARROW = "\u25B2";
+const DOWN_ARROW = "\u25BC";
+const UP_ARROW_HTML = "&#9650;";
+const DOWN_ARROW_HTML = "&#9660;";
+
+// Keep dashboard runtime state module-local. Timers and rotations read from
+// these values instead of trying to infer app state back out of the DOM.
 
 /* =========================================================
    LAYOUT INITIALIZATION
@@ -47,18 +54,19 @@ function initTopRightQuadrantLayout() {
   const q2 = document.getElementById("q2");
   if (!q2) return;
 
-  // If already built, do not rebuild DOM, but DO re-apply layout styles.
+  // Q2 is partially restructured at runtime so the large quote and the ticker
+  // grid can share the quadrant more predictably than the raw HTML shell allows.
   const mainWrapExisting = document.getElementById("main-display");
   const tickerWrapExisting = document.getElementById("ticker-panel");
 
-  // Build wrappers once
+  // Build the runtime shell once, then let CSS handle sizing from there.
   if (!mainWrapExisting || !tickerWrapExisting) {
-    // IMPORTANT: Preserve the entire title-row so CSS flex keeps title + asset on one line
     const titleRow = q2.querySelector(".title-row");
     const assetName = document.getElementById("asset-name");
     const q2Title = q2.querySelector(".q2-title");
 
-    // If someone edited HTML and removed title-row, rebuild it safely
+    // If someone edited the base HTML and removed the title row, rebuild the
+    // minimum structure Q2 expects.
     let ensuredTitleRow = titleRow;
     if (!ensuredTitleRow) {
       ensuredTitleRow = document.createElement("div");
@@ -74,7 +82,7 @@ function initTopRightQuadrantLayout() {
     const mainWrap = document.createElement("div");
     mainWrap.id = "main-display";
 
-    // NEW: center wrapper for price/change so title stays top (fullscreen-safe)
+    // Keep the large quote centered independently from the title row.
     const centerWrap = document.createElement("div");
     centerWrap.id = "main-center";
 
@@ -101,7 +109,7 @@ function initTopRightQuadrantLayout() {
     q2.appendChild(tickerWrap);
   }
 
-  // If Q2 already exists from previous load, ensure price/change are inside #main-center
+  // On later calls, make sure price/change are still in the expected slot.
   const mainWrap = document.getElementById("main-display");
   if (mainWrap) {
     let centerWrap = document.getElementById("main-center");
@@ -117,7 +125,7 @@ function initTopRightQuadrantLayout() {
 
       mainWrap.appendChild(centerWrap);
     } else {
-      // If someone moved nodes around, re-home them
+      // Re-home nodes if another edit moved them out of the center container.
       const price = document.getElementById("price");
       const change = document.getElementById("change");
       if (price && price.parentElement !== centerWrap) centerWrap.appendChild(price);
@@ -188,6 +196,7 @@ function initTopRightQuadrantLayout() {
 
 async function fetchPrice(symbol) {
   try {
+    // Q2 and the ticker panel both flow through this quote endpoint.
     const response = await fetch(
       `/quote/${encodeURIComponent(symbol)}`
     );
@@ -211,6 +220,8 @@ function ensureQ1Shell(modeTitleText) {
   const inner = q1.querySelector(".quad-inner");
   if (!inner) return null;
 
+  // Q1 alternates between gas and electric, but both modes share the same
+  // fade container and header scaffold.
   if (!inner.querySelector("#q1-shell")) {
     inner.innerHTML = `
       <div id="q1-shell">
@@ -242,6 +253,7 @@ function q1EmptyHtml(message) {
 }
 
 function renderHenryHubHtml(data) {
+  // Render only the content region; ensureQ1Shell owns the outer title shell.
   let html = q1DividerHtml();
 
   if (data && Array.isArray(data.contracts) && data.contracts.length > 0) {
@@ -259,7 +271,7 @@ function renderHenryHubHtml(data) {
       const change = Number(c?.change ?? 0);
       const percent = Number(c?.percent ?? 0);
       const isUp = change >= 0;
-      const arrow = isUp ? "&#9650;" : "&#9660;";
+      const arrow = isUp ? UP_ARROW_HTML : DOWN_ARROW_HTML;
       const color = isUp ? "#00ff7f" : "#ff4c4c";
 
       html += `
@@ -284,6 +296,8 @@ function renderHenryHubHtml(data) {
 }
 
 function normalizeElectricMarketDisplay(m) {
+  // Normalize backend/source naming so Q1 stays readable even if an upstream
+  // feed omits clean ISO or hub labels.
   const name = m?.name ?? "--";
   const price = m?.price == null ? null : Number(m.price);
   const change = m?.change == null ? null : Number(m.change);
@@ -320,6 +334,8 @@ function normalizeElectricMarketDisplay(m) {
 }
 
 function renderElectricHtml(data) {
+  // Electric rows always render in a fixed shape so unavailable markets stay
+  // visible instead of collapsing the table.
   let html = q1DividerHtml();
 
   html += `
@@ -343,7 +359,7 @@ function renderElectricHtml(data) {
     const isAvailable = status === "ok" && price != null && change != null && percent != null;
     const isUp = isAvailable ? change >= 0 : false;
     const color = isAvailable ? (isUp ? "#00ff7f" : "#ff4c4c") : "rgba(242,242,242,0.55)";
-    const arrow = isUp ? "&#9650;" : "&#9660;";
+    const arrow = isUp ? UP_ARROW_HTML : DOWN_ARROW_HTML;
     const priceText = isAvailable ? `$${price.toFixed(2)}` : "--";
     const changeText = isAvailable
       ? `<span class="q1-change-arrow">${arrow}</span>$${Math.abs(change).toFixed(2)} (${Math.abs(percent).toFixed(2)}%)`
@@ -610,6 +626,7 @@ async function updateElectric() {
 }
 
 async function buildHenryHubHtmlForRotation() {
+  // Rotation can reuse the latest rendered HTML instead of re-fetching every time.
   if (latestHenryHubHtml) return latestHenryHubHtml;
   const res = await fetch(HENRY_API, { cache: "no-store" });
   const data = await res.json();
@@ -701,6 +718,7 @@ async function buildHenryHubHtmlForRotation() {
 }
 
 async function buildElectricHtmlForRotation() {
+  // Electric uses the same caching idea as Henry Hub so Q1 fades feel instant.
   if (latestElectricHtml) return latestElectricHtml;
   const res = await fetch("/electric", { cache: "no-store" });
   if (!res.ok) throw new Error("HTTP status " + res.status);
@@ -805,6 +823,8 @@ async function buildElectricHtmlForRotation() {
    ========================================================= */
 
 async function updateAsset() {
+  // Q2 headline quote shows one asset at a time, while tickerData stores the
+  // broader snapshot used by the categorized table underneath.
   const asset = assets[currentIndex];
   const data = await fetchPrice(asset.symbol);
 
@@ -866,6 +886,7 @@ async function rotateAssets() {
 }
 
 async function rotateQ1() {
+  // Precompute the incoming HTML before swapping modes so the fade feels crisp.
   if (q1TransitionInFlight) return;
   q1TransitionInFlight = true;
 
@@ -919,6 +940,7 @@ function updateTickerPanel() {
   const panel = document.getElementById("ticker-content");
   if (!panel) return;
 
+  // Keep categories explicit so Q2 does not depend on asset ordering alone.
   const grouped = {
     "Indices": [],
     "Metals": [],
@@ -990,8 +1012,8 @@ function updateTickerPanel() {
 async function refreshAllTickers() {
   const newData = { ...tickerData };
 
-  // PRELOAD everything first
-  for (let asset of assets) {
+  // Fetch first, paint second. That keeps the panel from partially updating row by row.
+  for (const asset of assets) {
     const data = await fetchPrice(asset.symbol);
 
     if (data && data.price != null && data.price !== 0) {
@@ -1004,7 +1026,6 @@ async function refreshAllTickers() {
     }
   }
 
-  // UPDATE only after all data is ready
   assets.forEach(asset => {
     const oldData = tickerData[asset.symbol];
     const updated = newData[asset.symbol];
@@ -1053,6 +1074,7 @@ function startTickerCountdown() {
   const el = document.getElementById("ticker-refresh-timer");
   if (!el) return;
 
+  // The countdown is visual only; the actual refresh still happens in refreshAllTickers().
   tickerInterval = setInterval(async () => {
     if (isRefreshing) return;
 
@@ -1095,7 +1117,8 @@ async function fetchEventWatch() {
   }
 }
 
-/** Fallback: make a slug readable and strip giant numeric tails */
+// Convert noisy market slugs into readable titles when the upstream feed omits
+// a nicer human-facing label.
 function sanitizeSlugTitle(slug) {
   if (!slug) return "Unknown Event";
 
@@ -1114,9 +1137,7 @@ function sanitizeSlugTitle(slug) {
 }
 
 function renderEventWatch(data) {
-  /* =============================
-   DOUGHCON DISPLAY
-  ============================= */
+  // Reset the legend highlight first, then activate only the current Doughcon row.
   document.querySelectorAll(".legend-item").forEach(el => {
     el.style.background = "transparent";
   });
@@ -1142,10 +1163,6 @@ function renderEventWatch(data) {
   if (!container) return;
 
   let html = "";
-
-  /* =============================
-     TOP TWO SPIKES
-  ============================= */
 
   if (data.spike && data.spike.length > 0) {
     const topTwo = data.spike.slice(0, 2);
@@ -1177,10 +1194,6 @@ function renderEventWatch(data) {
 
     html += `</div>`;
   }
-
-  /* =============================
-     TOP 3 MARKETS
-  ============================= */
 
   if (data.top_markets && data.top_markets.length > 0) {
     html += `<div class="event-markets">`;
@@ -1255,6 +1268,8 @@ async function fetchOilGasBoard() {
 }
 
 function escapeHtml(value) {
+  // The backend supplies mostly trusted text, but anything inserted into
+  // innerHTML is still escaped here to keep renderers predictable and safe.
   return String(value ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -1438,6 +1453,8 @@ function truncateSummary(value, maxLength = 60) {
 }
 
 function simplifyForecast(value, maxLength = 60) {
+  // Dashboards read better with the leading weather idea only: "Partly Sunny"
+  // is clearer than a cut-off phrase like "Partly Sunny then Slight Ch..."
   const text = String(value ?? "").trim();
   if (!text) return "";
 
@@ -1491,6 +1508,8 @@ function legacyWeatherIcon(shortForecast) {
 }
 
 function getWeatherIcon(shortForecast) {
+  // Icons are lightweight Unicode symbols so weather views stay self-contained
+  // without depending on a separate icon library.
   const forecast = String(shortForecast ?? "").toLowerCase();
 
   if (forecast.includes("thunder")) {
@@ -1520,6 +1539,7 @@ function getWeatherIcon(shortForecast) {
 
 async function fetchWeatherDashboard() {
   try {
+    // Q4 weather is pre-aggregated by the backend so the browser only makes one request.
     const res = await fetch(WEATHER_DASHBOARD_API, { cache: "no-store" });
     return await res.json();
   } catch (err) {
@@ -1529,6 +1549,8 @@ async function fetchWeatherDashboard() {
 }
 
 function getWeatherLayoutMode() {
+  // Q4 weather uses size buckets instead of one fixed layout so the same markup
+  // can adapt to smaller browser windows and fullscreen displays.
   const stage = document.getElementById("weather-rotator");
   if (!stage) return "default";
 
@@ -1547,6 +1569,8 @@ function getWeatherClass(mode) {
 }
 
 function renderRegionalWeatherView(data, mode = "default") {
+  // The regional view shares the quadrant between two cities, so it is the
+  // strictest weather layout and the first to compact itself.
   const cities = data?.regional?.cities ?? [];
   if (!cities.length) {
     return `<div class="weather-empty">Regional weather is temporarily unavailable.</div>`;
@@ -1583,6 +1607,7 @@ function renderRegionalWeatherView(data, mode = "default") {
 }
 
 function renderHartfordWeatherView(data, mode = "default") {
+  // Hartford view combines a "today" summary with a denser extended grid.
   const current = data?.hartford?.current;
   const periods = data?.hartford?.extended ?? [];
 
@@ -1681,6 +1706,8 @@ function buildWeatherViewHtml(viewKey, data) {
 }
 
 function renderQ4View() {
+  // Q4 switches between one headlines shell and one weather shell instead of
+  // rebuilding the entire quadrant container each time.
   const headlinesShell = document.getElementById("q4-headlines-shell");
   const weatherShell = document.getElementById("q4-weather-shell");
   const stage = document.getElementById("weather-rotator");
@@ -1703,6 +1730,8 @@ function renderQ4View() {
 }
 
 async function updateWeatherDashboard() {
+  // Only re-render immediately if a weather view is currently visible; otherwise
+  // cache the fresh data until Q4 rotates back to weather.
   const data = await fetchWeatherDashboard();
   if (!data) return;
   weatherDashboardData = data;
@@ -1755,7 +1784,7 @@ function startClock() {
 }
 
 /* =========================================================
-   FULLSCREEN TOGGLE (SAFE ADDITION)
+   FULLSCREEN / VIEWPORT HELPERS
    ========================================================= */
 
 function toggleFullscreen() {
@@ -1769,6 +1798,8 @@ function toggleFullscreen() {
 }
 
 function syncViewportDimensions() {
+  // Expose the live browser viewport to CSS so layout can react to windowed
+  // mode, not just the user's full monitor size.
   const width = window.innerWidth || document.documentElement.clientWidth || 0;
   const height = window.innerHeight || document.documentElement.clientHeight || 0;
   const root = document.documentElement;
@@ -1810,6 +1841,8 @@ document.addEventListener("fullscreenchange", () => {
    BOOT SEQUENCE
    ========================================================= */
 
+// Initial boot intentionally renders shells first, then fills data in. That
+// keeps the dashboard structure stable even while APIs are still loading.
 initTopRightQuadrantLayout();
 syncViewportDimensions();
 startClock();
