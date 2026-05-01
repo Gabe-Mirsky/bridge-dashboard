@@ -809,9 +809,18 @@ def build_electric():
     miso = update_miso_history()
     ercot = update_ercot_history()
 
-    def compute(history, name):
+    def compute(history, name, hub):
         if not isinstance(history, dict):
-            return None
+            return {
+                "name": name,
+                "iso": name,
+                "hub": hub,
+                "unit": "$/MWh",
+                "price": None,
+                "change": None,
+                "percent": None,
+                "status": "unavailable"
+            }
 
         current_month = history.get("current_month")
         prior_month = history.get("prior_month")
@@ -824,7 +833,16 @@ def build_electric():
         prior_vals = list(prior_data.values())
 
         if not current_vals:
-            return None
+            return {
+                "name": name,
+                "iso": name,
+                "hub": hub,
+                "unit": "$/MWh",
+                "price": None,
+                "change": None,
+                "percent": None,
+                "status": "unavailable"
+            }
 
         current_avg = sum(current_vals) / len(current_vals)
         prior_avg = (sum(prior_vals) / len(prior_vals)) if prior_vals else None
@@ -838,6 +856,8 @@ def build_electric():
 
         return {
             "name": name,
+            "iso": name,
+            "hub": hub,
             "unit": "$/MWh",
             "price": round(current_avg, 2),
             "change": round(change, 2),
@@ -845,15 +865,11 @@ def build_electric():
             "status": "ok"
         }
 
-    markets = []
-
-    for result in [
-        compute(iso, "ISO-NE"),
-        compute(miso, "MISO"),
-        compute(ercot, "ERCOT")
-    ]:
-        if result:
-            markets.append(result)
+    markets = [
+        compute(iso, "ISO-NE", "Internal Hub"),
+        compute(miso, "MISO", "Illinois Hub"),
+        compute(ercot, "ERCOT", "HB North")
+    ]
 
     return {
         "as_of": datetime.now().isoformat(),

@@ -285,9 +285,10 @@ function renderHenryHubHtml(data) {
 
 function normalizeElectricMarketDisplay(m) {
   const name = m?.name ?? "--";
-  const price = Number(m?.price ?? 0);
-  const change = Number(m?.change ?? 0);
-  const percent = Number(m?.percent ?? 0);
+  const price = m?.price == null ? null : Number(m.price);
+  const change = m?.change == null ? null : Number(m.change);
+  const percent = m?.percent == null ? null : Number(m.percent);
+  const status = m?.status ?? "ok";
   let iso = name;
   let hub = "--";
 
@@ -315,7 +316,7 @@ function normalizeElectricMarketDisplay(m) {
     }
   }
 
-  return { iso, hub, price, change, percent };
+  return { iso, hub, price, change, percent, status };
 }
 
 function renderElectricHtml(data) {
@@ -338,20 +339,23 @@ function renderElectricHtml(data) {
 
   html += `<div class="q1-table-rows">`;
   data.markets.forEach(m => {
-    const { iso, hub, price, change, percent } = normalizeElectricMarketDisplay(m);
-    const isUp = change >= 0;
-    const color = isUp ? "#00ff7f" : "#ff4c4c";
+    const { iso, hub, price, change, percent, status } = normalizeElectricMarketDisplay(m);
+    const isAvailable = status === "ok" && price != null && change != null && percent != null;
+    const isUp = isAvailable ? change >= 0 : false;
+    const color = isAvailable ? (isUp ? "#00ff7f" : "#ff4c4c") : "rgba(242,242,242,0.55)";
     const arrow = isUp ? "&#9650;" : "&#9660;";
-    const deltaDollars = `$${Math.abs(change).toFixed(2)}`;
-    const deltaPercent = `${Math.abs(percent).toFixed(2)}%`;
+    const priceText = isAvailable ? `$${price.toFixed(2)}` : "--";
+    const changeText = isAvailable
+      ? `<span class="q1-change-arrow">${arrow}</span>$${Math.abs(change).toFixed(2)} (${Math.abs(percent).toFixed(2)}%)`
+      : "Unavailable";
 
     html += `
       <div class="q1-table-row q1-grid-4">
         <div class="q1-cell-strong">${iso}</div>
         <div class="q1-cell-strong">${hub}</div>
-        <div class="q1-cell-center">$${price.toFixed(2)}</div>
+        <div class="q1-cell-center">${priceText}</div>
         <div class="q1-cell-right" style="color:${color};">
-          <span class="q1-change-arrow">${arrow}</span>${deltaDollars} (${deltaPercent})
+          ${changeText}
         </div>
       </div>
     `;
@@ -1430,7 +1434,7 @@ function truncateSummary(value, maxLength = 60) {
   const text = String(value ?? "").trim();
   if (!text) return "";
   if (text.length <= maxLength) return text;
-  return `${text.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
+  return text.slice(0, Math.max(0, maxLength)).trimEnd();
 }
 
 function legacyWeatherIcon(shortForecast) {
@@ -1534,7 +1538,7 @@ function renderRegionalWeatherView(data, mode = "default") {
           <div class="weather-city-header">
             <div class="weather-city-name">${escapeHtml(city.city)}</div>
           </div>
-          <div class="weather-day-list">
+          <div class="weather-day-list" style="grid-template-rows: repeat(${Math.max(1, Math.min(dayLimit, (city.days ?? []).length))}, minmax(0, 1fr));">
             ${(city.days ?? []).slice(0, dayLimit).map(day => {
               const icon = getWeatherIcon(day.summary);
               return `

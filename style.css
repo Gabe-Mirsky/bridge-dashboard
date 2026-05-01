@@ -45,8 +45,8 @@ html, body {
   --q1-header-size: clamp(13px, 0.73vw, 14px);
   --q1-row-size: clamp(18px, 1.09vw, 21px);
   --q1-empty-size: clamp(16px, 0.94vw, 18px);
-  --ticker-row-size: clamp(12px, 0.68vw, 13px);
-  --ticker-group-size: clamp(11px, 0.63vw, 12px);
+  --ticker-row-size: clamp(12px, 0.78vw, 15px);
+  --ticker-group-size: clamp(11px, 0.68vw, 13px);
   --ticker-timer-size: clamp(10px, 0.57vw, 11px);
   --ticker-value-min: clamp(72px, 4.58vw, 88px);
   --ticker-change-min: clamp(112px, 7.19vw, 138px);
@@ -535,12 +535,13 @@ body {
   gap: var(--ticker-grid-gap);
   height: 100%;
   min-height: 0;
-  align-items: start;
+  align-items: stretch;
 }
 
 .ticker-column {
   display: flex;
   flex-direction: column;
+  height: 100%;
   min-height: 0;
 }
 
@@ -553,7 +554,15 @@ body {
 }
 
 .ticker-group {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-height: 0;
   margin-bottom: var(--space-xl);
+}
+
+.ticker-column > .ticker-group:last-child {
+  margin-bottom: 0;
 }
 
 .ticker-group-title {
@@ -569,8 +578,10 @@ body {
 
 .ticker-group-rows {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
-  gap: var(--space-sm);
+  justify-content: space-evenly;
+  gap: var(--space-md);
 }
 
 .ticker-row {
@@ -580,7 +591,7 @@ body {
   align-items: center;
   font-size: var(--ticker-row-size);
   line-height: 1.15;
-  padding: var(--space-xs) var(--space-2xs);
+  padding: var(--space-sm) var(--space-xs);
   border-radius: var(--radius-sm);
 }
 
@@ -951,7 +962,8 @@ body {
 
 .weather-day-list {
   display: grid;
-  gap: clamp(3px, 0.35vw, 6px);
+  gap: clamp(4px, 0.4vw, 8px);
+  height: 100%;
   min-height: 0;
   overflow: hidden;
   align-content: start;
@@ -963,9 +975,10 @@ body {
   gap: clamp(5px, 0.5vw, 8px);
   align-items: center;
   font-size: clamp(11px, 0.95vw, 14px);
-  padding: clamp(4px, 0.4vw, 8px) 0;
+  padding: clamp(4px, 0.45vw, 8px) 0;
   border-top: 1px solid rgba(255,255,255,0.06);
   min-width: 0;
+  min-height: 0;
 }
 
 .weather-day-row:first-child {
@@ -999,6 +1012,7 @@ body {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   line-clamp: 2;
+  text-overflow: clip;
 }
 
 .weather-hartford-layout {
@@ -1097,6 +1111,7 @@ body {
   -webkit-line-clamp: 2;
   line-clamp: 2;
   overflow: hidden;
+  text-overflow: clip;
 }
 
 .weather-view--compact .weather-grid-two,
