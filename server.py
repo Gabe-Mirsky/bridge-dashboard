@@ -244,13 +244,13 @@ WEATHER_LOCATIONS = {
 NOAA_OUTLOOK_SOURCES = [
     {
         "key": "week",
-        "label": "1 Week NOAA",
+        "label": "1 Week",
         "url": "https://www.cpc.ncep.noaa.gov/products/predictions/6-10_day/",
         "image_url": "https://www.cpc.ncep.noaa.gov/products/predictions/610day/610temp.new.gif",
     },
     {
         "key": "month",
-        "label": "1 Month NOAA",
+        "label": "1 Month",
         "url": "https://www.cpc.ncep.noaa.gov/products/predictions/30day/",
         "image_url": "https://www.cpc.ncep.noaa.gov/products/predictions/30day/off14_temp.gif",
     },
