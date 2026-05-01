@@ -1381,15 +1381,22 @@ body {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: clamp(6px, 0.6vw, 10px);
+  background: rgba(7, 14, 21, 0.88);
 }
 
 .weather-outlook-image {
   display: block;
-  width: 100%;
-  height: 100%;
-  max-height: clamp(190px, 28vh, 320px);
-  object-fit: cover;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: min(100%, clamp(220px, 34vh, 420px));
+  object-fit: contain;
   object-position: top center;
+  image-rendering: auto;
+  image-rendering: -webkit-optimize-contrast;
 }
 
 .weather-outlook-valid {
@@ -1763,6 +1770,16 @@ body.is-mobile .weather-city-panel,
 body.is-mobile .weather-hartford-today,
 body.is-mobile .weather-outlook-card {
   padding: 10px;
+}
+
+body.is-mobile .weather-outlook-image-wrap {
+  padding: 4px;
+}
+
+body.is-mobile .weather-outlook-image {
+  width: 100%;
+  max-width: 100%;
+  max-height: clamp(220px, 42vh, 360px);
 }
 
 body.is-mobile .weather-day-row {
