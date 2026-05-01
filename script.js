@@ -1499,28 +1499,50 @@ async function fetchWeatherDashboard() {
   }
 }
 
-function renderRegionalWeatherView(data) {
+function getWeatherLayoutMode() {
+  const stage = document.getElementById("weather-rotator");
+  if (!stage) return "default";
+
+  const width = stage.clientWidth || 0;
+  const height = stage.clientHeight || 0;
+
+  if (width <= 360 || height <= 225) return "condensed";
+  if (width <= 760 || height <= 360) return "compact";
+  return "default";
+}
+
+function getWeatherClass(mode) {
+  if (mode === "condensed") return " weather-view--condensed";
+  if (mode === "compact") return " weather-view--compact";
+  return "";
+}
+
+function renderRegionalWeatherView(data, mode = "default") {
   const cities = data?.regional?.cities ?? [];
   if (!cities.length) {
     return `<div class="weather-empty">Regional weather is temporarily unavailable.</div>`;
   }
 
+  const dayLimit = mode === "condensed" ? 5 : mode === "compact" ? 6 : 7;
+  const summaryLimit = mode === "condensed" ? 22 : mode === "compact" ? 42 : 70;
+  const modeClass = getWeatherClass(mode);
+
   return `
-    <div class="weather-view weather-grid-two">
+    <div class="weather-view weather-grid-two${modeClass}">
       ${cities.map(city => `
         <div class="weather-city-panel">
           <div class="weather-city-header">
             <div class="weather-city-name">${escapeHtml(city.city)}</div>
           </div>
           <div class="weather-day-list">
-            ${(city.days ?? []).slice(0, 7).map(day => {
+            ${(city.days ?? []).slice(0, dayLimit).map(day => {
               const icon = getWeatherIcon(day.summary);
               return `
               <div class="weather-day-row">
                 <div class="weather-day-name">${escapeHtml(day.name)}</div>
                 <div class="weather-day-temp">${escapeHtml(day.temperature_display)}</div>
                 <div class="weather-day-icon weather-mini-icon weather-mini-icon-${escapeHtml(icon.className)}" aria-label="${escapeHtml(icon.label)}" title="${escapeHtml(icon.label)}">${escapeHtml(icon.symbol)}</div>
-                <div class="weather-day-summary">${escapeHtml(truncateSummary(day.summary, 70))}</div>
+                <div class="weather-day-summary">${escapeHtml(truncateSummary(day.summary, summaryLimit))}</div>
               </div>
             `;
             }).join("")}
@@ -1531,7 +1553,7 @@ function renderRegionalWeatherView(data) {
   `;
 }
 
-function renderHartfordWeatherView(data) {
+function renderHartfordWeatherView(data, mode = "default") {
   const current = data?.hartford?.current;
   const periods = data?.hartford?.extended ?? [];
 
@@ -1544,18 +1566,28 @@ function renderHartfordWeatherView(data) {
   const showCurrentName =
     currentName &&
     !["today", "this afternoon"].includes(currentName.toLowerCase());
+  const modeClass = getWeatherClass(mode);
+  const currentSummary = truncateSummary(
+    current.short_forecast,
+    mode === "condensed" ? 24 : mode === "compact" ? 42 : 80
+  );
+  const currentDetail = truncateSummary(
+    current.detail,
+    mode === "condensed" ? 56 : mode === "compact" ? 96 : 180
+  );
+  const miniSummaryLimit = mode === "condensed" ? 18 : mode === "compact" ? 28 : 42;
 
   return `
-    <div class="weather-view weather-hartford-layout">
+    <div class="weather-view weather-hartford-layout${modeClass}">
       <div class="weather-hartford-today">
         <div class="weather-panel-title">Hartford Today</div>
         <div class="weather-hartford-current-temp">${escapeHtml(current.temperature_display)}</div>
         ${showCurrentName ? `<div class="weather-hartford-current-name">${escapeHtml(currentName)}</div>` : ""}
         <div class="weather-hartford-current-brief">
           <div class="weather-mini-icon weather-mini-icon-${escapeHtml(currentIcon.className)}" aria-label="${escapeHtml(currentIcon.label)}" title="${escapeHtml(currentIcon.label)}">${escapeHtml(currentIcon.symbol)}</div>
-          <div class="weather-hartford-current-summary">${escapeHtml(current.short_forecast)}</div>
+          <div class="weather-hartford-current-summary">${escapeHtml(currentSummary)}</div>
         </div>
-        <div class="weather-hartford-current-detail">${escapeHtml(current.detail)}</div>
+        <div class="weather-hartford-current-detail">${escapeHtml(currentDetail)}</div>
       </div>
       <div class="weather-city-panel">
         <div class="weather-panel-title">Hartford Extended</div>
@@ -1567,7 +1599,7 @@ function renderHartfordWeatherView(data) {
               <div class="weather-mini-icon weather-mini-icon-${escapeHtml(icon.className)}" aria-label="${escapeHtml(icon.label)}" title="${escapeHtml(icon.label)}">${escapeHtml(icon.symbol)}</div>
               <div class="weather-mini-name">${escapeHtml(period.name)}</div>
               <div class="weather-mini-temp">${escapeHtml(period.temperature_display)}</div>
-              <div class="weather-mini-summary">${escapeHtml(period.short_forecast)}</div>
+              <div class="weather-mini-summary">${escapeHtml(truncateSummary(period.short_forecast, miniSummaryLimit))}</div>
             </div>
           `;
           }).join("")}
@@ -1612,8 +1644,10 @@ function buildWeatherViewHtml(viewKey, data) {
     return `<div class="weather-empty">${escapeHtml(`Weather data unavailable: ${data.error}`)}</div>`;
   }
 
-  if (viewKey === "regional") return renderRegionalWeatherView(data);
-  if (viewKey === "hartford") return renderHartfordWeatherView(data);
+  const mode = getWeatherLayoutMode();
+
+  if (viewKey === "regional") return renderRegionalWeatherView(data, mode);
+  if (viewKey === "hartford") return renderHartfordWeatherView(data, mode);
   return renderOutlookWeatherView(data);
 }
 
@@ -1712,11 +1746,6 @@ function syncViewportDimensions() {
 
   root.style.setProperty("--viewport-width", `${width}px`);
   root.style.setProperty("--viewport-height", `${height}px`);
-
-  const readout = document.getElementById("viewport-readout");
-  if (readout) {
-    readout.textContent = `${width} x ${height}`;
-  }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -1732,12 +1761,20 @@ document.addEventListener("keydown", (e) => {
 window.addEventListener("resize", () => {
   syncViewportDimensions();
   initTopRightQuadrantLayout();
+  const currentView = Q4_VIEWS[currentQ4ViewIndex];
+  if (currentView?.type === "weather") {
+    renderQ4View();
+  }
 });
 
 // When fullscreen changes, re-apply layout so Q2 is always correct
 document.addEventListener("fullscreenchange", () => {
   syncViewportDimensions();
   initTopRightQuadrantLayout();
+  const currentView = Q4_VIEWS[currentQ4ViewIndex];
+  if (currentView?.type === "weather") {
+    renderQ4View();
+  }
 });
 
 /* =========================================================
