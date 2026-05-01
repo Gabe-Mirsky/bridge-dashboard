@@ -1437,6 +1437,31 @@ function truncateSummary(value, maxLength = 60) {
   return text.slice(0, Math.max(0, maxLength)).trimEnd();
 }
 
+function simplifyForecast(value, maxLength = 60) {
+  const text = String(value ?? "").trim();
+  if (!text) return "";
+
+  const splitPatterns = [
+    /\s+then\s+/i,
+    /\s+with\s+/i,
+    /\s+followed by\s+/i,
+    /\s+becoming\s+/i,
+    /\s+before\s+/i,
+    /\s+later\s+/i
+  ];
+
+  let simplified = text;
+  for (const pattern of splitPatterns) {
+    const parts = simplified.split(pattern);
+    if (parts.length > 1 && parts[0].trim()) {
+      simplified = parts[0].trim();
+      break;
+    }
+  }
+
+  return truncateSummary(simplified, maxLength);
+}
+
 function legacyWeatherIcon(shortForecast) {
   const forecast = String(shortForecast ?? "").toLowerCase();
 
@@ -1528,7 +1553,7 @@ function renderRegionalWeatherView(data, mode = "default") {
   }
 
   const dayLimit = mode === "condensed" ? 5 : mode === "compact" ? 6 : 7;
-  const summaryLimit = mode === "condensed" ? 22 : mode === "compact" ? 42 : 70;
+  const summaryLimit = mode === "condensed" ? 20 : mode === "compact" ? 30 : 44;
   const modeClass = getWeatherClass(mode);
 
   return `
@@ -1546,7 +1571,7 @@ function renderRegionalWeatherView(data, mode = "default") {
                 <div class="weather-day-name">${escapeHtml(day.name)}</div>
                 <div class="weather-day-temp">${escapeHtml(day.temperature_display)}</div>
                 <div class="weather-day-icon weather-mini-icon weather-mini-icon-${escapeHtml(icon.className)}" aria-label="${escapeHtml(icon.label)}" title="${escapeHtml(icon.label)}">${escapeHtml(icon.symbol)}</div>
-                <div class="weather-day-summary">${escapeHtml(truncateSummary(day.summary, summaryLimit))}</div>
+                <div class="weather-day-summary">${escapeHtml(simplifyForecast(day.summary, summaryLimit))}</div>
               </div>
             `;
             }).join("")}
@@ -1571,15 +1596,15 @@ function renderHartfordWeatherView(data, mode = "default") {
     currentName &&
     !["today", "this afternoon"].includes(currentName.toLowerCase());
   const modeClass = getWeatherClass(mode);
-  const currentSummary = truncateSummary(
+  const currentSummary = simplifyForecast(
     current.short_forecast,
-    mode === "condensed" ? 24 : mode === "compact" ? 42 : 80
+    mode === "condensed" ? 22 : mode === "compact" ? 30 : 44
   );
   const currentDetail = truncateSummary(
     current.detail,
     mode === "condensed" ? 56 : mode === "compact" ? 96 : 180
   );
-  const miniSummaryLimit = mode === "condensed" ? 18 : mode === "compact" ? 28 : 42;
+  const miniSummaryLimit = mode === "condensed" ? 16 : mode === "compact" ? 20 : 24;
 
   return `
     <div class="weather-view weather-hartford-layout${modeClass}">
@@ -1603,7 +1628,7 @@ function renderHartfordWeatherView(data, mode = "default") {
               <div class="weather-mini-icon weather-mini-icon-${escapeHtml(icon.className)}" aria-label="${escapeHtml(icon.label)}" title="${escapeHtml(icon.label)}">${escapeHtml(icon.symbol)}</div>
               <div class="weather-mini-name">${escapeHtml(period.name)}</div>
               <div class="weather-mini-temp">${escapeHtml(period.temperature_display)}</div>
-              <div class="weather-mini-summary">${escapeHtml(truncateSummary(period.short_forecast, miniSummaryLimit))}</div>
+              <div class="weather-mini-summary">${escapeHtml(simplifyForecast(period.short_forecast, miniSummaryLimit))}</div>
             </div>
           `;
           }).join("")}

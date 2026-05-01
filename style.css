@@ -546,7 +546,7 @@ body {
 }
 
 .ticker-column--spaced {
-  justify-content: space-between;
+  justify-content: flex-start;
 }
 
 .ticker-column--start {
@@ -555,10 +555,10 @@ body {
 
 .ticker-group {
   display: flex;
-  flex: 1 1 0;
+  flex: 0 1 auto;
   flex-direction: column;
   min-height: 0;
-  margin-bottom: var(--space-xl);
+  margin-bottom: var(--space-2xl);
 }
 
 .ticker-column > .ticker-group:last-child {
@@ -578,10 +578,9 @@ body {
 
 .ticker-group-rows {
   display: flex;
-  flex: 1 1 auto;
   flex-direction: column;
-  justify-content: space-evenly;
-  gap: var(--space-md);
+  justify-content: flex-start;
+  gap: var(--space-sm);
 }
 
 .ticker-row {
@@ -591,7 +590,7 @@ body {
   align-items: center;
   font-size: var(--ticker-row-size);
   line-height: 1.15;
-  padding: var(--space-sm) var(--space-xs);
+  padding: var(--space-xs) var(--space-xs);
   border-radius: var(--radius-sm);
 }
 
@@ -606,6 +605,17 @@ body {
 .ticker-percent {
   text-align: right;
   white-space: nowrap;
+}
+
+.ticker-column--start .ticker-group {
+  display: flex;
+  flex: 1 1 auto;
+}
+
+.ticker-column--start .ticker-group-rows {
+  flex: 1 1 auto;
+  justify-content: space-evenly;
+  gap: var(--space-md);
 }
 
 .energy-card {
