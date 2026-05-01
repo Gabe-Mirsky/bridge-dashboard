@@ -342,11 +342,15 @@ def get_henry_hub():
 # Keeps only current month + prior month
 # =========================================================
 
-ELECTRIC_CACHE = {"data": None}
+ELECTRIC_CACHE = {
+    "data": None,
+    "last_update": None
+}
 
 ISO_FILE = "isone_history.json"
 MISO_FILE = "miso_history.json"
 ERCOT_FILE = "ercot_history.json"
+ELECTRIC_DEBUG = True
 
 # ---------------------------------------------------------
 # GENERIC LOAD / SAVE
@@ -450,6 +454,12 @@ def _load_or_reset_two_month_history(file, name):
     }
 
     if history != new_history:
+        old_current = history.get("current_month") if isinstance(history, dict) else None
+        old_prior = history.get("prior_month") if isinstance(history, dict) else None
+        _electric_debug(
+            f"{name} month rollover/reset from current={old_current}, prior={old_prior} "
+            f"to current={current_month}, prior={prior_month}"
+        )
         _save_json(file, new_history)
 
     return new_history
@@ -464,6 +474,10 @@ def _month_ranges_to_fill():
         (_month_str(prior_start), prior_start, prior_end),
         (_month_str(current_start), current_start, today),
     ]
+
+def _electric_debug(message):
+    if ELECTRIC_DEBUG:
+        print(f"[electric-debug] {message}")
 
 # ---------------------------------------------------------
 # GENERIC CSV / COLUMN HELPERS
@@ -600,13 +614,18 @@ def update_iso_history():
                 val = fetch_isone_daily_average(d)
                 if val is not None:
                     data[month_key][key] = round(val, 5)
-                    print(f"ISONE adding day to json: {key}")
+                    _electric_debug(f"ISONE added {key} = {round(val, 5)}")
                     updated = True
+                else:
+                    _electric_debug(f"ISONE missing {key}")
             d += timedelta(days=1)
 
     if updated:
         history["data"] = data
         _save_json(ISO_FILE, history)
+        _electric_debug(
+            f"ISONE history saved with months {history['prior_month']} and {history['current_month']}"
+        )
 
     return history
 
@@ -695,13 +714,18 @@ def update_miso_history():
                 val = fetch_miso_daily_average(d)
                 if val is not None:
                     data[month_key][key] = round(val, 5)
-                    print(f"MISO adding day to json: {key}")
+                    _electric_debug(f"MISO added {key} = {round(val, 5)}")
                     updated = True
+                else:
+                    _electric_debug(f"MISO missing {key}")
             d += timedelta(days=1)
 
     if updated:
         history["data"] = data
         _save_json(MISO_FILE, history)
+        _electric_debug(
+            f"MISO history saved with months {history['prior_month']} and {history['current_month']}"
+        )
 
     return history
 
@@ -818,14 +842,19 @@ def update_ercot_history():
 
                 if val is not None:
                     data[month_key][key] = round(val, 5)
-                    print(f"ERCOT adding day to json: {key}")
+                    _electric_debug(f"ERCOT added {key} = {round(val, 5)}")
                     updated = True
+                else:
+                    _electric_debug(f"ERCOT missing {key}")
 
             d += timedelta(days=1)
 
     if updated:
         history["data"] = data
         _save_json(ERCOT_FILE, history)
+        _electric_debug(
+            f"ERCOT history saved with months {history['prior_month']} and {history['current_month']}"
+        )
 
     return history
 # =========================================================
@@ -833,6 +862,7 @@ def update_ercot_history():
 # =========================================================
 
 def build_electric():
+    _electric_debug("Starting electric rebuild")
     iso = update_iso_history()
     miso = update_miso_history()
     ercot = update_ercot_history()
@@ -905,54 +935,11 @@ def build_electric():
         "markets": markets
     }
 
-# =========================================================
-# BACKGROUND REFRESH (every 10 min)
-# =========================================================
-
 def electric_background_worker():
     while True:
         try:
             ELECTRIC_CACHE["data"] = build_electric()
             ELECTRIC_CACHE["last_update"] = datetime.now()
-            print("Electric cache refreshed.")
-        except Exception as e:
-            print("Electric refresh error:", e)
-        time.sleep(600)
-
-@app.on_event("startup")
-def start_electric_background():
-    Thread(target=electric_background_worker, daemon=True).start()
-
-# =========================================================
-# API ENDPOINT (instant)
-# =========================================================
-ELECTRIC_CACHE = {
-    "data": None,
-    "last_update": None
-}
-
-@app.get("/electric")
-def get_electric():
-
-    now = datetime.now()
-
-    if (
-        ELECTRIC_CACHE["data"] is None or
-        ELECTRIC_CACHE["last_update"] is None or
-        (now - ELECTRIC_CACHE["last_update"]).seconds > 3600
-    ):
-        ELECTRIC_CACHE["data"] = build_electric()
-        ELECTRIC_CACHE["last_update"] = now
-
-    return ELECTRIC_CACHE["data"]
-# =========================================================
-# BACKGROUND REFRESH (every 10 min)
-# =========================================================
-
-def electric_background_worker():
-    while True:
-        try:
-            ELECTRIC_CACHE["data"] = build_electric()
             print("Electric cache refreshed.")
         except Exception as e:
             print("Electric refresh error:", e)
