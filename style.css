@@ -1089,50 +1089,33 @@ body {
   overflow-wrap: anywhere;
 }
 
-.weather-hartford-next {
-  margin-top: auto;
-  padding-top: clamp(10px, 0.8vw, 14px);
-  border-top: 1px solid rgba(255,255,255,0.08);
+.weather-hartford-today--spacious .weather-panel-title {
+  margin-bottom: clamp(10px, 0.8vw, 14px);
 }
 
-.weather-hartford-next-title {
-  font-size: clamp(11px, 0.88vw, 13px);
-  font-weight: 700;
-  letter-spacing: 0.9px;
-  text-transform: uppercase;
-  color: rgba(242,242,242,0.58);
-  margin-bottom: clamp(6px, 0.5vw, 8px);
+.weather-hartford-today--spacious .weather-hartford-current-temp {
+  font-size: clamp(40px, 4.8vw, 64px);
+  margin-bottom: clamp(10px, 0.8vw, 14px);
 }
 
-.weather-hartford-next-list {
-  display: flex;
-  flex-direction: column;
-  gap: clamp(6px, 0.45vw, 8px);
+.weather-hartford-today--spacious .weather-hartford-current-brief {
+  gap: clamp(12px, 0.9vw, 16px);
+  margin-bottom: clamp(12px, 0.9vw, 16px);
+  padding-bottom: clamp(10px, 0.8vw, 12px);
 }
 
-.weather-hartford-next-row {
-  display: grid;
-  grid-template-columns: minmax(0, 0.9fr) auto minmax(0, 1.25fr);
-  gap: clamp(6px, 0.5vw, 10px);
-  align-items: center;
-  font-size: clamp(12px, 0.94vw, 14px);
+.weather-hartford-today--spacious .weather-hartford-current-brief .weather-mini-icon {
+  font-size: clamp(28px, 2.4vw, 38px);
 }
 
-.weather-hartford-next-name {
-  font-weight: 600;
-  color: rgba(242,242,242,0.9);
+.weather-hartford-today--spacious .weather-hartford-current-summary {
+  font-size: clamp(16px, 1.2vw, 18px);
 }
 
-.weather-hartford-next-temp {
-  color: #9fd8ff;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.weather-hartford-next-summary {
-  color: rgba(242,242,242,0.72);
-  min-width: 0;
-  overflow-wrap: anywhere;
+.weather-hartford-today--spacious .weather-hartford-current-detail {
+  font-size: clamp(14px, 1.08vw, 17px);
+  -webkit-line-clamp: 6;
+  line-clamp: 6;
 }
 
 .weather-mini-grid {
@@ -1235,20 +1218,6 @@ body {
   line-clamp: 3;
 }
 
-.weather-view--compact .weather-hartford-next {
-  padding-top: clamp(8px, 0.6vw, 10px);
-}
-
-.weather-view--compact .weather-hartford-next-title {
-  font-size: clamp(10px, 0.74vw, 11px);
-  margin-bottom: 4px;
-}
-
-.weather-view--compact .weather-hartford-next-row {
-  font-size: clamp(10px, 0.78vw, 12px);
-  gap: 6px;
-}
-
 .weather-view--compact .weather-mini-grid {
   gap: clamp(4px, 0.35vw, 6px);
 }
@@ -1335,21 +1304,6 @@ body {
 .weather-view--condensed .weather-hartford-current-detail {
   -webkit-line-clamp: 2;
   line-clamp: 2;
-}
-
-.weather-view--condensed .weather-hartford-next {
-  padding-top: 6px;
-}
-
-.weather-view--condensed .weather-hartford-next-title {
-  font-size: clamp(9px, 0.65vw, 10px);
-  margin-bottom: 3px;
-}
-
-.weather-view--condensed .weather-hartford-next-row {
-  grid-template-columns: minmax(0, 0.82fr) auto minmax(0, 1.15fr);
-  gap: 4px;
-  font-size: clamp(9px, 0.65vw, 10px);
 }
 
 .weather-view--condensed .weather-mini-grid {

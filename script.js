@@ -1647,11 +1647,15 @@ function renderHartfordWeatherView(data, mode = "default") {
     mode === "condensed" ? 56 : mode === "compact" ? 96 : 180
   );
   const miniSummaryLimit = mode === "condensed" ? 16 : mode === "compact" ? 20 : 24;
-  const nextPeriods = periods.slice(0, mode === "condensed" ? 1 : 2);
+  const extendedPeriods = periods.slice(1, 9);
+  const spaciousToday =
+    mode === "default" &&
+    currentSummary.length <= 18 &&
+    currentDetail.length <= 80;
 
   return `
     <div class="weather-view weather-hartford-layout${modeClass}">
-      <div class="weather-hartford-today">
+      <div class="weather-hartford-today${spaciousToday ? " weather-hartford-today--spacious" : ""}">
         <div class="weather-panel-title">Hartford Today</div>
         <div class="weather-hartford-current-temp">${escapeHtml(current.temperature_display)}</div>
         ${showCurrentName ? `<div class="weather-hartford-current-name">${escapeHtml(currentName)}</div>` : ""}
@@ -1660,25 +1664,11 @@ function renderHartfordWeatherView(data, mode = "default") {
           <div class="weather-hartford-current-summary">${escapeHtml(currentSummary)}</div>
         </div>
         <div class="weather-hartford-current-detail">${escapeHtml(currentDetail)}</div>
-        ${nextPeriods.length ? `
-          <div class="weather-hartford-next">
-            <div class="weather-hartford-next-title">Next Up</div>
-            <div class="weather-hartford-next-list">
-              ${nextPeriods.map(period => `
-                <div class="weather-hartford-next-row">
-                  <div class="weather-hartford-next-name">${escapeHtml(period.name)}</div>
-                  <div class="weather-hartford-next-temp">${escapeHtml(period.temperature_display)}</div>
-                  <div class="weather-hartford-next-summary">${escapeHtml(simplifyForecast(period.short_forecast, mode === "condensed" ? 18 : 24))}</div>
-                </div>
-              `).join("")}
-            </div>
-          </div>
-        ` : ""}
       </div>
       <div class="weather-city-panel">
         <div class="weather-panel-title">Hartford Extended</div>
         <div class="weather-mini-grid">
-          ${periods.slice(0, 8).map(period => {
+          ${extendedPeriods.map(period => {
             const icon = getWeatherIcon(period.short_forecast);
             return `
             <div class="weather-mini-card">
