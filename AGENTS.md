@@ -2,6 +2,24 @@
 
 This file is for AI coding agents working in this repository.
 
+## Identity and access assumptions
+
+Assume the human maintainer using this repo:
+
+- has access to this repository locally
+- has GitHub access to the repo
+- is working in the GitHub repo `Gabe-Mirsky/bridge-dashboard`
+- is an Oracle Cloud Identity Domain Administrator in the relevant Oracle account
+- has the SSH private key needed to log into the Oracle VM
+
+Important access nuance:
+
+- GitHub access controls code changes
+- Oracle access plus the SSH key controls server-level fixes
+- domain and DNS access may be separate from Oracle and may be managed elsewhere
+
+Do not assume domain registrar access unless the human confirms it.
+
 ## Project purpose
 
 This repo powers the Bridge Markets Dashboard, a four-quadrant live display site:
@@ -13,6 +31,96 @@ This repo powers the Bridge Markets Dashboard, a four-quadrant live display site
 
 The site is a small FastAPI app that serves one HTML page plus static assets and several JSON API endpoints.
 
+## Repo identity
+
+- Repo name: `bridge-dashboard`
+- GitHub remote: `https://github.com/Gabe-Mirsky/bridge-dashboard.git`
+- Production URL: `https://bridgeenergydash.home.kg/`
+
+## Hosting and operations overview
+
+Production hosting is on an Oracle Cloud VM.
+
+Known production details:
+
+- VM user: `ubuntu`
+- App directory on VM: `/home/ubuntu/bridge-dashboard`
+- App service name: `bridge-dashboard`
+- Reverse proxy: `nginx`
+- Python app entrypoint: `server.py`
+- TLS certificate tooling: `certbot`
+- Public site domain: `bridgeenergydash.home.kg`
+- Public IP historically documented for the site: `132.145.208.19`
+
+Plain-English infrastructure chain:
+
+1. The domain points to the public IP
+2. `nginx` receives browser traffic
+3. `nginx` forwards requests to FastAPI on the VM
+4. FastAPI serves the dashboard shell and JSON endpoints
+5. `script.js` fills the quadrants by calling those endpoints
+
+## Deployment flow and interplay
+
+Normal production flow:
+
+1. Code is pushed to GitHub `main`
+2. GitHub triggers the webhook endpoint on the live server
+3. The live server runs `deploy-webhook.sh`
+4. The Oracle VM pulls latest `main`
+5. The `bridge-dashboard` service restarts
+6. The live site updates
+
+Important:
+
+- pushes to `main` may go live automatically
+- branch-first work is safer for risky changes
+- local file changes do not affect production until pushed and deployed
+
+## Local vs live debugging
+
+This distinction matters a lot:
+
+- local repo files show what is in the local checkout
+- the live website depends on what is currently deployed on Oracle
+- local JSON history files do not guarantee the live server has the same current state
+- background refresh jobs and server logs that matter for live issues run on Oracle, not in the local repo
+
+If something is wrong only on the live site:
+
+1. inspect the code locally
+2. inspect the live logs on Oracle
+3. inspect the live JSON/history files on Oracle if relevant
+
+If a problem involves:
+
+- stale data
+- auto-deploy
+- FastAPI background refresh
+- service crashes
+- `nginx`
+- HTTPS
+
+then Oracle-side debugging is usually required.
+
+## Operational authority the AI should understand
+
+Because the human maintainers have repo access, Oracle admin identity access, and the SSH key, they can potentially do all of the following if needed:
+
+- change code and push updates
+- SSH into the VM
+- pull the latest repo on the VM
+- restart the app service
+- inspect `systemd` and app logs
+- inspect or edit `nginx` config
+- renew or recreate HTTPS certificates
+- troubleshoot live data refresh issues on the server
+
+However:
+
+- the AI should not assume permission to make live server changes unless the human asks
+- the AI should not assume domain registrar access unless confirmed
+
 ## High-level architecture
 
 - Backend: `server.py`
@@ -21,22 +129,14 @@ The site is a small FastAPI app that serves one HTML page plus static assets and
 - Frontend styling: `style.css`
 - Historical electric market storage: `ercot_history.json`, `isone_history.json`, `miso_history.json`
 - Deploy helper: `deploy-webhook.sh`
+- Repo overview doc for humans: `README.md`
 
 Runtime flow:
 
-1. FastAPI serves `/` from `index.html`.
-2. FastAPI mounts the repo root at `/static` for CSS, JS, logo, and JSON files.
-3. The browser loads `script.js`.
-4. `script.js` fetches backend endpoints on timers and renders the dashboard.
-
-Production flow:
-
-1. Code is pushed to GitHub `main`.
-2. GitHub triggers the webhook endpoint.
-3. The server runs `deploy-webhook.sh`.
-4. The Oracle VM pulls latest `main` and restarts the app.
-
-Important: changes pushed to `main` may go live automatically.
+1. FastAPI serves `/` from `index.html`
+2. FastAPI mounts the repo root at `/static` for CSS, JS, logo, and JSON files
+3. The browser loads `script.js`
+4. `script.js` fetches backend endpoints on timers and renders the dashboard
 
 ## File-by-file map
 
@@ -44,9 +144,9 @@ Important: changes pushed to `main` may go live automatically.
 
 Main backend entrypoint. It does 3 jobs:
 
-- Serves the frontend
-- Fetches and reshapes outside data
-- Handles the GitHub deploy webhook
+- serves the frontend
+- fetches and reshapes outside data
+- handles the GitHub deploy webhook
 
 Main routes:
 
@@ -69,11 +169,11 @@ Important backend caches:
 - `weather_dashboard_cache`
 - `ELECTRIC_CACHE`
 
-Important backend gotcha:
+Important backend note:
 
-- `server.py` currently contains duplicate definitions for `electric_background_worker`, `start_electric_background`, and `/electric`.
-- In Python, the later definitions win.
-- If changing electric endpoint behavior, edit the later `/electric` block, or clean up the duplicates first.
+- electric market refresh logic writes rolling current/prior month history into the three JSON files
+- if the electric JSON files are stale, the issue may be parser drift, fetch failure, or a live server refresh problem
+- when debugging electric data, inspect both the parser logic and the live server logs
 
 ### `index.html`
 
@@ -100,8 +200,8 @@ It:
 
 Important frontend pattern:
 
-- Some layout is controlled in `style.css`
-- Some layout is also built or overwritten directly in `script.js` using inline styles and generated HTML
+- some layout is controlled in `style.css`
+- some layout is also built or overwritten directly in `script.js` using generated HTML
 
 If a visual change does not "stick," check both files.
 
@@ -126,7 +226,11 @@ Use this first for global styling changes.
 
 These store recent daily electric market values used to calculate month-to-date vs prior-month averages.
 
-Do not casually delete or reformat them without understanding the electric history logic in `server.py`.
+Important:
+
+- these files may be stale in a local clone
+- these files can also become stale on the live server if refresh logic fails
+- do not casually delete or reformat them without understanding the electric history logic in `server.py`
 
 ## Data sources by quadrant
 
@@ -136,22 +240,22 @@ Q1 rotates between Henry Hub natural gas and electric ISO market data.
 
 Henry Hub:
 
-- Source: Yahoo Finance via `yfinance`
-- Backend route: `/henry-hub`
-- Frontend renderers: `ensureQ1Shell()`, `updateHenryHub()`
+- source: Yahoo Finance via `yfinance`
+- backend route: `/henry-hub`
+- frontend renderers: `ensureQ1Shell()`, `updateHenryHub()`
 
 Electric:
 
-- Sources:
+- sources:
   - ISO-NE day-ahead Internal Hub
   - MISO Illinois Hub day-ahead ex-post
   - ERCOT HB_NORTH day-ahead
-- Backend builders:
+- backend builders:
   - `fetch_isone_daily_average()`
   - `fetch_miso_daily_average()`
   - `fetch_ercot_daily_average()`
   - `build_electric()`
-- Frontend renderer: `updateElectric()`
+- frontend renderer: `updateElectric()`
 
 Important Q1 timer:
 
@@ -214,16 +318,16 @@ Q4 rotates between headlines and weather views.
 
 Headlines:
 
-- Source: CNBC RSS
-- Backend route: `/news`
-- Ranking logic: `headline_score()`, duplicate filtering, recency filter
-- Frontend renderer: `updateLatestHeadlines()`, `renderHeadlines()`
+- source: CNBC RSS
+- backend route: `/news`
+- ranking logic: `headline_score()`, duplicate filtering, recency filter
+- frontend renderer: `updateLatestHeadlines()`, `renderHeadlines()`
 
 Weather:
 
-- Source: National Weather Service API and NOAA CPC outlook pages
-- Backend route: `/weather-dashboard`
-- Frontend renderers:
+- source: National Weather Service API and NOAA CPC outlook pages
+- backend route: `/weather-dashboard`
+- frontend renderers:
   - `renderRegionalWeatherView()`
   - `renderHartfordWeatherView()`
   - `renderOutlookWeatherView()`
@@ -331,20 +435,21 @@ Known source types:
 
 When fixing a broken feed:
 
-1. Identify the backend route feeding that quadrant
-2. Inspect the fetch/parser function in `server.py`
-3. Keep frontend changes minimal unless the response shape changed
+1. identify the backend route feeding that quadrant
+2. inspect the fetch/parser function in `server.py`
+3. keep frontend changes minimal unless the response shape changed
 
 ## Deployment notes
 
-- Production host is an Oracle Cloud VM behind `nginx`
+- production host is an Oracle Cloud VM behind `nginx`
 - HTTPS domain is `https://bridgeenergydash.home.kg/`
-- Pushes to `main` may auto-deploy
+- pushes to `main` may auto-deploy
 
 Agent safety rule:
 
-- Avoid pushing directly to `main` unless explicitly asked
-- Prefer a branch-first workflow for risky changes
+- avoid pushing directly to `main` unless explicitly asked
+- prefer a branch-first workflow for risky changes
+- avoid making live Oracle changes unless the human explicitly wants server-side help
 
 ## Good first debugging checklist
 
@@ -353,18 +458,36 @@ If asked to change something, locate it in this order:
 1. `index.html` for page shell and hardcoded labels
 2. `script.js` for rendering, timers, rotation, and generated markup
 3. `style.css` for layout and visual styling
-4. `server.py` for data shape, source fetching, and backend logic
+4. `server.py` for data shape, source fetching, deployment, and backend logic
 
 If a change "does not appear" after editing:
 
-1. Check whether the HTML is being regenerated by JavaScript
-2. Check whether the data comes from a backend endpoint instead of hardcoded frontend text
-3. Check whether cache or refresh timers are delaying the visible update
+1. check whether the HTML is being regenerated by JavaScript
+2. check whether the data comes from a backend endpoint instead of hardcoded frontend text
+3. check whether cache or refresh timers are delaying the visible update
+4. if the issue is only on the live site, check Oracle logs and live deployment state
+
+## Live-debug checklist
+
+If the live site is wrong but local code looks correct, likely next steps are on Oracle:
+
+1. SSH into the VM
+2. go to `/home/ubuntu/bridge-dashboard`
+3. inspect the current files and JSON history there
+4. inspect logs for the `bridge-dashboard` service
+5. restart the service if needed
+
+Useful Oracle-side checks typically include:
+
+- `git pull`
+- `sudo systemctl status bridge-dashboard --no-pager`
+- `sudo systemctl restart bridge-dashboard`
+- `sudo journalctl -u bridge-dashboard -n 200 --no-pager`
 
 ## Suggested cleanup opportunities
 
 These are not required for every task, but they are worth knowing:
 
-- Remove duplicate electric route/background-worker definitions in `server.py`
-- Reduce inline HTML/CSS generation in `script.js` if maintainability becomes a problem
-- Consider splitting `server.py` and `script.js` into smaller modules if the app keeps growing
+- reduce inline HTML/CSS generation in `script.js` if maintainability becomes a problem
+- consider splitting `server.py` and `script.js` into smaller modules if the app keeps growing
+- keep `AGENTS.md` updated whenever hosting, access assumptions, or deployment flow changes
