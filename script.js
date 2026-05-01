@@ -1452,10 +1452,27 @@ function truncateSummary(value, maxLength = 60) {
   return text.slice(0, Math.max(0, maxLength)).trimEnd();
 }
 
+function compactForecastCopy(value) {
+  return String(value ?? "")
+    .replace(/\bSlight Chance Rain Showers\b/gi, "Slight Rain Chance")
+    .replace(/\bChance Rain Showers\b/gi, "Chance Rain")
+    .replace(/\bChance Showers And Thunderstorms\b/gi, "Showers & Storms")
+    .replace(/\bChance Showers And Thunderstorms\b/gi, "Showers & Storms")
+    .replace(/\bSlight Chance Showers And Thunderstorms\b/gi, "Slight Storm Chance")
+    .replace(/\bChance Thunderstorms\b/gi, "Storm Chance")
+    .replace(/\bThunderstorms\b/gi, "Storms")
+    .replace(/\bThunderstorm\b/gi, "Storm")
+    .replace(/\bPartly Sunny Then\b/gi, "Partly Sunny")
+    .replace(/\bMostly Sunny Then\b/gi, "Mostly Sunny")
+    .replace(/\bMostly Clear Then\b/gi, "Mostly Clear")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 function simplifyForecast(value, maxLength = 60) {
   // Dashboards read better with the leading weather idea only: "Partly Sunny"
   // is clearer than a cut-off phrase like "Partly Sunny then Slight Ch..."
-  const text = String(value ?? "").trim();
+  const text = compactForecastCopy(value);
   if (!text) return "";
 
   const splitPatterns = [
@@ -1476,7 +1493,7 @@ function simplifyForecast(value, maxLength = 60) {
     }
   }
 
-  return truncateSummary(simplified, maxLength);
+  return truncateSummary(compactForecastCopy(simplified), maxLength);
 }
 
 function legacyWeatherIcon(shortForecast) {
@@ -1630,6 +1647,7 @@ function renderHartfordWeatherView(data, mode = "default") {
     mode === "condensed" ? 56 : mode === "compact" ? 96 : 180
   );
   const miniSummaryLimit = mode === "condensed" ? 16 : mode === "compact" ? 20 : 24;
+  const nextPeriods = periods.slice(0, mode === "condensed" ? 1 : 2);
 
   return `
     <div class="weather-view weather-hartford-layout${modeClass}">
@@ -1642,6 +1660,20 @@ function renderHartfordWeatherView(data, mode = "default") {
           <div class="weather-hartford-current-summary">${escapeHtml(currentSummary)}</div>
         </div>
         <div class="weather-hartford-current-detail">${escapeHtml(currentDetail)}</div>
+        ${nextPeriods.length ? `
+          <div class="weather-hartford-next">
+            <div class="weather-hartford-next-title">Next Up</div>
+            <div class="weather-hartford-next-list">
+              ${nextPeriods.map(period => `
+                <div class="weather-hartford-next-row">
+                  <div class="weather-hartford-next-name">${escapeHtml(period.name)}</div>
+                  <div class="weather-hartford-next-temp">${escapeHtml(period.temperature_display)}</div>
+                  <div class="weather-hartford-next-summary">${escapeHtml(simplifyForecast(period.short_forecast, mode === "condensed" ? 18 : 24))}</div>
+                </div>
+              `).join("")}
+            </div>
+          </div>
+        ` : ""}
       </div>
       <div class="weather-city-panel">
         <div class="weather-panel-title">Hartford Extended</div>
