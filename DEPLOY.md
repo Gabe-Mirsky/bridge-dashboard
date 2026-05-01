@@ -1,395 +1,110 @@
-# Bridge Dashboard Deployment Runbook
-
-This document is the working deployment guide for the live Bridge Dashboard.
+# Bridge Dashboard Deployment Notes
 
 ## Live site
 
-- Production URL: `https://bridgeenergydash.home.kg/`
-- HTTP URL: `http://bridgeenergydash.home.kg/`
-- Reserved public IP: `132.145.208.19`
-
-## Hosting setup
-
+- URL: `https://bridgeenergydash.home.kg/`
+- Public IP: `132.145.208.19`
 - Host: Oracle Cloud VM
-- VM user: `ubuntu`
-- App directory on VM: `/home/ubuntu/bridge-dashboard`
-- Python app entrypoint: `server.py`
-- App service name: `bridge-dashboard`
-- Reverse proxy: `nginx`
-- TLS: `certbot` / Let's Encrypt
 
-## Current architecture
+## How it works
 
-1. `nginx` listens on ports `80` and `443`
-2. `nginx` proxies requests to FastAPI on `127.0.0.1:8000`
-3. FastAPI is started by `systemd` using the `bridge-dashboard` service
-4. DNS for `bridgeenergydash.home.kg` points to `132.145.208.19`
+- GitHub stores the code.
+- Oracle Cloud runs the live website.
+- `nginx` handles public web traffic and HTTPS.
+- `nginx` forwards requests to the FastAPI app running on `127.0.0.1:8000`.
+- The app runs as the `bridge-dashboard` systemd service.
 
-## Simplest deploy model
+## Normal update flow
 
-Use these 3 pieces:
+This project is set up for auto-deploy.
 
-1. GitHub is the editing place
-2. GitHub sends a webhook on commit
-3. The server deploys automatically by pulling latest code and restarting the app
+1. Make a change.
+2. Push to GitHub `main`.
+3. GitHub sends a webhook to the server.
+4. The server pulls the latest code and restarts the app.
+5. The live website updates.
 
-That removes the need for coworkers to SSH into the VM, remember commands, or restart services manually.
+Important: pushing to a separate branch should not update the live site. Only `main` should deploy.
 
-## Automatic deploy setup
+## Auto-deploy pieces
 
-The repo now includes:
-
-- FastAPI webhook endpoint: `POST /webhook/github`
+- Webhook endpoint: `POST /webhook/github`
 - Deploy script: `deploy-webhook.sh`
+- Deploy branch: `refs/heads/main`
 
-### Part 1: Configure environment variables for the app service
+The deploy script does 4 things:
 
-Add these environment variables to the `bridge-dashboard` systemd service or another secure environment file loaded by that service:
+1. Goes to the app folder on the VM
+2. Fetches the latest code from GitHub
+3. Pulls the latest `main`
+4. Restarts `bridge-dashboard`
 
-```bash
-GITHUB_WEBHOOK_SECRET=choose-a-long-random-secret
-DEPLOY_BRANCH=refs/heads/main
-DEPLOY_SCRIPT_PATH=/home/ubuntu/bridge-dashboard/deploy-webhook.sh
-```
+## Important VM paths
 
-After updating the service definition:
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl restart bridge-dashboard
-```
-
-### Part 2: Install and test the deploy script on the VM
-
-On the VM:
-
-```bash
-cd /home/ubuntu/bridge-dashboard
-chmod +x deploy-webhook.sh
-```
-
-The script is intentionally small. It does:
-
-```bash
-cd /home/ubuntu/bridge-dashboard
-git fetch origin main
-git checkout main
-git pull --ff-only origin main
-sudo systemctl restart bridge-dashboard
-```
-
-### Part 3: Allow only the restart command in sudoers
-
-The FastAPI service user usually cannot restart systemd services unless you allow that exact command.
-
-Recommended approach:
-
-1. Open sudoers safely:
-
-```bash
-sudo visudo
-```
-
-2. Add a narrow rule for the service user. Example for user `ubuntu`:
-
-```bash
-ubuntu ALL=NOPASSWD: /usr/bin/systemctl restart bridge-dashboard
-```
-
-Do not grant broad sudo access. Allow only the specific restart command needed by the deploy script.
-
-### Part 4: Add the webhook in GitHub
-
-In the GitHub repo:
-
-1. Go to `Settings -> Webhooks -> Add webhook`
-2. Set `Payload URL` to:
-
-```text
-https://bridgeenergydash.home.kg/webhook/github
-```
-
-3. Set `Content type` to `application/json`
-4. Set `Secret` to the same value as `GITHUB_WEBHOOK_SECRET`
-5. Choose `Just the push event`
-6. Save
-
-### Deployment flow after setup
-
-1. Coworker edits in GitHub
-2. Coworker clicks Commit
-3. GitHub sends a signed push webhook
-4. FastAPI verifies the signature
-5. FastAPI runs `deploy-webhook.sh`
-6. The server pulls latest code and restarts `bridge-dashboard`
-
-### Quick manual webhook checks
-
-GitHub should send a `ping` event when the webhook is first created.
-
-- If the secret is wrong, the endpoint returns `401`
-- If the push is for a different branch, the endpoint returns `ignored`
-- If the deploy script fails, the endpoint returns `500`
-
-### Important limitation
-
-This webhook path can only complete a deployment if:
-
-- the VM repo already has working GitHub access
-- the service user can execute the deploy script
-- sudoers allows restarting only the `bridge-dashboard` service
-
-## One-time GitHub SSH setup on the VM
-
-Use this once so the VM can run `git pull` without asking for a username or token.
-
-### 1. SSH into the VM
-
-From Oracle Cloud Shell:
-
-```bash
-ssh -i ~/ssh-key-2026-03-06.key ubuntu@132.145.208.19
-```
-
-### 2. Generate a GitHub SSH key on the VM
-
-```bash
-ssh-keygen -t ed25519 -C "bridge-dashboard-vm"
-```
-
-When prompted:
-
-- Press `Enter` to accept the default path
-- Press `Enter` again for no passphrase
-
-### 3. Print the public key
-
-```bash
-cat ~/.ssh/id_ed25519.pub
-```
-
-### 4. Add that key to GitHub
-
-In GitHub:
-
-- Go to `Settings -> SSH and GPG keys`
-- Click `New SSH key`
-- Title: `bridge-dashboard-vm`
-- Paste the full public key
-- Save
-
-### 5. Test GitHub SSH access from the VM
-
-```bash
-ssh -T git@github.com
-```
-
-The first time, type `yes` to trust GitHub.
-
-You should get a success message mentioning your GitHub username.
-
-### 6. Point the repo at the SSH remote
-
-In the VM project directory:
-
-```bash
-cd ~/bridge-dashboard
-git remote -v
-git remote set-url origin git@github.com:YOUR_GITHUB_USERNAME/bridge-dashboard.git
-git remote -v
-```
-
-After this, `git pull` will use SSH instead of HTTPS.
-
-## Normal update process
-
-Use this when the site is already running and you only want to publish code changes.
-
-### Step 1: Update code locally
-
-Edit the local project files in:
-
-`C:\Users\GabeMirsky-BridgeEne\Downloads\Python\Bridge_Dashboard Project`
-
-### Step 2: Push changes to GitHub
-
-Push the updated files to the GitHub repo for this project.
-
-### Step 3: SSH into the Oracle VM
-
-From Oracle Cloud Shell:
-
-```bash
-ssh -i ~/ssh-key-2026-03-06.key ubuntu@132.145.208.19
-```
-
-### Step 4: Pull the latest code on the VM
-
-```bash
-cd ~/bridge-dashboard
-git pull
-```
-
-Important:
-
-- `git pull` is safe and keeps the existing `.venv`
-- a fresh `git clone` into a new `~/bridge-dashboard` folder does **not** include `.venv`
-- if `.venv` is missing, the site will fail and Nginx will show `502 Bad Gateway`
-
-### Step 5: Restart the app
-
-```bash
-sudo systemctl restart bridge-dashboard
-sudo systemctl status bridge-dashboard --no-pager
-```
-
-### Step 6: Verify the site
-
-Open:
-
-- `https://bridgeenergydash.home.kg/`
-- `https://bridgeenergydash.home.kg/docs`
-
-Or test on the VM:
-
-```bash
-curl http://127.0.0.1:8000/
-curl http://127.0.0.1:8000/docs
-```
-
-## Fast manual fallback
-
-Use this only if GitHub pull is not available or the repo on the VM is not set up correctly.
-
-### From Cloud Shell
-
-Upload changed files to your Cloud Shell home directory, then run:
-
-```bash
-bash ~/cloudshell-deploy.sh
-```
-
-This script copies the app files to the VM and restarts `bridge-dashboard`.
-
-## Important service commands
-
-### Check app status
-
-```bash
-sudo systemctl status bridge-dashboard --no-pager
-```
-
-### Restart app
-
-```bash
-sudo systemctl restart bridge-dashboard
-```
-
-### View recent app logs
-
-```bash
-sudo journalctl -u bridge-dashboard -n 100 --no-pager
-```
-
-### Check nginx status
-
-```bash
-sudo systemctl status nginx --no-pager
-```
-
-### Reload nginx after config change
-
-```bash
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
-## Important file locations on the VM
-
-- App code: `/home/ubuntu/bridge-dashboard`
-- Python virtualenv: `/home/ubuntu/bridge-dashboard/.venv`
-- Systemd service: `/etc/systemd/system/bridge-dashboard.service`
-- Nginx site config: `/etc/nginx/sites-available/bridge-dashboard`
-- Enabled nginx site symlink: `/etc/nginx/sites-enabled/bridge-dashboard`
-- TLS cert path: `/etc/letsencrypt/live/bridgeenergydash.home.kg/fullchain.pem`
-- TLS key path: `/etc/letsencrypt/live/bridgeenergydash.home.kg/privkey.pem`
+- App folder: `/home/ubuntu/bridge-dashboard`
+- Python virtual environment: `/home/ubuntu/bridge-dashboard/.venv`
+- Service file: `/etc/systemd/system/bridge-dashboard.service`
+- Nginx config: `/etc/nginx/sites-available/bridge-dashboard`
+- TLS certs: `/etc/letsencrypt/live/bridgeenergydash.home.kg/`
 
 ## If the website goes down
 
-### 1. Check the app service
+SSH into the Oracle VM, then check these in order:
+
+### 1. App status
 
 ```bash
 sudo systemctl status bridge-dashboard --no-pager
-```
-
-If it is not running:
-
-```bash
 sudo systemctl restart bridge-dashboard
 ```
 
-### 2. Check nginx
+### 2. Nginx status
 
 ```bash
 sudo systemctl status nginx --no-pager
-```
-
-If needed:
-
-```bash
 sudo systemctl restart nginx
 ```
 
-### 3. Check local app response on the VM
+### 3. Local app test on the server
 
 ```bash
 curl http://127.0.0.1:8000/
 curl http://127.0.0.1:8000/docs
 ```
 
-### 4. Check public website response
-
-From a browser or Cloud Shell:
+### 4. Public site test
 
 ```bash
 curl -I https://bridgeenergydash.home.kg/
 ```
 
-## If Git pull fails on the VM
+## If GitHub deploy stops working
 
-Use the manual fallback:
+Check these:
 
-1. Upload changed files to Cloud Shell
-2. Run:
+- GitHub webhook is still active
+- Webhook secret matches the server setting
+- The server repo can still access GitHub
+- `deploy-webhook.sh` still exists and is executable
+- The service user can still restart `bridge-dashboard`
 
-```bash
-bash ~/cloudshell-deploy.sh
-```
+## If `git pull` fails on the VM
 
-If the error mentions GitHub authentication:
-
-1. Check the remote:
+Check the repo remote:
 
 ```bash
 cd ~/bridge-dashboard
 git remote -v
 ```
 
-2. If it still shows an `https://` GitHub URL, switch it to SSH:
+If needed, switch the VM repo to GitHub SSH:
 
 ```bash
 git remote set-url origin git@github.com:YOUR_GITHUB_USERNAME/bridge-dashboard.git
-```
-
-3. Test SSH auth:
-
-```bash
 ssh -T git@github.com
 ```
 
 ## If Python dependencies change
-
-After `git pull`, run:
 
 ```bash
 cd ~/bridge-dashboard
@@ -400,16 +115,6 @@ sudo systemctl restart bridge-dashboard
 
 ## If `.venv` is missing
 
-This usually happens if the app directory was replaced with a fresh `git clone`.
-
-Symptoms:
-
-- website shows `502 Bad Gateway`
-- `curl http://127.0.0.1:8000/` fails
-- `source .venv/bin/activate` says file not found
-
-Recovery:
-
 ```bash
 cd ~/bridge-dashboard
 python3 -m venv .venv
@@ -417,33 +122,11 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 sudo systemctl restart bridge-dashboard
-sudo systemctl status bridge-dashboard --no-pager
-```
-
-Verify locally on the VM:
-
-```bash
-curl http://127.0.0.1:8000/
-```
-
-## TLS / HTTPS renewal
-
-Certbot auto-renew is installed already.
-
-Check timer:
-
-```bash
-sudo systemctl status snap.certbot.renew.timer --no-pager
-```
-
-Manual renewal test:
-
-```bash
-sudo certbot renew --dry-run
 ```
 
 ## Notes
 
-- You do not need to keep Cloud Shell open for the site to run.
-- The site runs continuously because `bridge-dashboard` is managed by `systemd`.
-- `nginx` handles the public web traffic and forwards it to FastAPI.
+- You do not need to keep Cloud Shell open for the site to stay up.
+- Oracle access controls the server.
+- SSH access lets someone log in and repair or restart the app.
+- DNS access controls the public website address.
