@@ -365,9 +365,13 @@ ELECTRIC_CACHE = {
     "last_update": None
 }
 
-ISO_FILE = BASE_DIR / "isone_history.json"
-MISO_FILE = BASE_DIR / "miso_history.json"
-ERCOT_FILE = BASE_DIR / "ercot_history.json"
+RUNTIME_DATA_DIR = BASE_DIR / "runtime_data" / "electric"
+LEGACY_ISO_FILE = BASE_DIR / "isone_history.json"
+LEGACY_MISO_FILE = BASE_DIR / "miso_history.json"
+LEGACY_ERCOT_FILE = BASE_DIR / "ercot_history.json"
+ISO_FILE = RUNTIME_DATA_DIR / "isone_history.json"
+MISO_FILE = RUNTIME_DATA_DIR / "miso_history.json"
+ERCOT_FILE = RUNTIME_DATA_DIR / "ercot_history.json"
 ELECTRIC_DEBUG = True
 
 # ---------------------------------------------------------
@@ -391,9 +395,30 @@ def _load_json(file):
 def _save_json(file, data):
     """Persist JSON with stable formatting so history files stay diff-friendly."""
     path = Path(file)
+    path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
         f.write("\n")
+
+def _load_runtime_json(runtime_file, legacy_file=None):
+    # Migrate once from the old repo-root location into the ignored runtime
+    # directory so future deploys are not blocked by mutated tracked files.
+    runtime_path = Path(runtime_file)
+    if runtime_path.exists():
+        return _load_json(runtime_path)
+
+    if legacy_file is not None:
+        legacy_path = Path(legacy_file)
+        legacy_data = _load_json(legacy_path)
+        if legacy_data:
+            _save_json(runtime_path, legacy_data)
+            _electric_debug(
+                f"Migrated electric runtime file from legacy path {legacy_path.name} "
+                f"to {runtime_path.relative_to(BASE_DIR)}"
+            )
+            return legacy_data
+
+    return {}
 
 # ---------------------------------------------------------
 # MONTH HELPERS
@@ -462,7 +487,12 @@ def _build_two_month_history(name, prior_start, current_start, data):
 def _load_or_reset_two_month_history(file, name):
     # Roll stale history files forward to the current/prior month pair while
     # preserving any data already collected for those exact month keys.
-    history = _load_json(file)
+    legacy_map = {
+        ISO_FILE: LEGACY_ISO_FILE,
+        MISO_FILE: LEGACY_MISO_FILE,
+        ERCOT_FILE: LEGACY_ERCOT_FILE
+    }
+    history = _load_runtime_json(file, legacy_map.get(Path(file)))
 
     if not isinstance(history, dict):
         history = {}
