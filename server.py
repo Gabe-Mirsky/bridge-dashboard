@@ -362,7 +362,8 @@ def get_henry_hub():
 
 ELECTRIC_CACHE = {
     "data": None,
-    "last_update": None
+    "last_update": None,
+    "refreshing": False
 }
 
 RUNTIME_DATA_DIR = BASE_DIR / "runtime_data" / "electric"
@@ -536,6 +537,95 @@ def _month_ranges_to_fill():
         (_month_str(prior_start), prior_start, prior_end),
         (_month_str(current_start), current_start, today),
     ]
+
+def _electric_payload_from_history(history, name, hub):
+    # Convert raw daily history into the month-to-date average and
+    # prior-month comparison displayed in Q1.
+    if not isinstance(history, dict):
+        return {
+            "name": name,
+            "iso": name,
+            "hub": hub,
+            "unit": "$/MWh",
+            "price": None,
+            "change": None,
+            "percent": None,
+            "status": "unavailable"
+        }
+
+    current_month = history.get("current_month")
+    prior_month = history.get("prior_month")
+    all_data = history.get("data", {})
+
+    current_data = all_data.get(current_month, {})
+    prior_data = all_data.get(prior_month, {})
+
+    current_vals = list(current_data.values())
+    prior_vals = list(prior_data.values())
+
+    if not current_vals:
+        return {
+            "name": name,
+            "iso": name,
+            "hub": hub,
+            "unit": "$/MWh",
+            "price": None,
+            "change": None,
+            "percent": None,
+            "status": "unavailable"
+        }
+
+    current_avg = sum(current_vals) / len(current_vals)
+    prior_avg = (sum(prior_vals) / len(prior_vals)) if prior_vals else None
+
+    change = 0
+    percent = 0
+
+    if prior_avg is not None and prior_avg != 0:
+        change = current_avg - prior_avg
+        percent = (change / prior_avg) * 100
+
+    return {
+        "name": name,
+        "iso": name,
+        "hub": hub,
+        "unit": "$/MWh",
+        "price": round(current_avg, 2),
+        "change": round(change, 2),
+        "percent": round(percent, 2),
+        "status": "ok"
+    }
+
+def _build_electric_payload(iso, miso, ercot, aggregation):
+    return {
+        "as_of": datetime.now().isoformat(),
+        "aggregation": aggregation,
+        "markets": [
+            _electric_payload_from_history(iso, "ISO-NE", "Internal Hub"),
+            _electric_payload_from_history(miso, "MISO", "Illinois Hub"),
+            _electric_payload_from_history(ercot, "ERCOT", "HB North")
+        ]
+    }
+
+def _read_saved_electric_payload():
+    # Serve what is already on disk immediately so the wallboard does not hang
+    # while background backfills work through multiple external feeds.
+    iso = _load_or_reset_two_month_history(ISO_FILE, "ISONE")
+    miso = _load_or_reset_two_month_history(MISO_FILE, "MISO")
+    ercot = _load_or_reset_two_month_history(ERCOT_FILE, "ERCOT")
+    return _build_electric_payload(
+        iso,
+        miso,
+        ercot,
+        "Saved MTD average vs Prior Month average"
+    )
+
+def _has_any_electric_market(payload):
+    markets = payload.get("markets", []) if isinstance(payload, dict) else []
+    return any(
+        isinstance(market, dict) and market.get("status") == "ok"
+        for market in markets
+    )
 
 def _electric_debug(message):
     # Centralized debug hook so temporary electric logging can be disabled in
@@ -952,87 +1042,26 @@ def build_electric():
     iso = update_iso_history()
     miso = update_miso_history()
     ercot = update_ercot_history()
-
-    def compute(history, name, hub):
-        # Convert raw daily history into the month-to-date average and
-        # prior-month comparison displayed in Q1.
-        if not isinstance(history, dict):
-            return {
-                "name": name,
-                "iso": name,
-                "hub": hub,
-                "unit": "$/MWh",
-                "price": None,
-                "change": None,
-                "percent": None,
-                "status": "unavailable"
-            }
-
-        current_month = history.get("current_month")
-        prior_month = history.get("prior_month")
-        all_data = history.get("data", {})
-
-        current_data = all_data.get(current_month, {})
-        prior_data = all_data.get(prior_month, {})
-
-        current_vals = list(current_data.values())
-        prior_vals = list(prior_data.values())
-
-        if not current_vals:
-            return {
-                "name": name,
-                "iso": name,
-                "hub": hub,
-                "unit": "$/MWh",
-                "price": None,
-                "change": None,
-                "percent": None,
-                "status": "unavailable"
-            }
-
-        current_avg = sum(current_vals) / len(current_vals)
-        prior_avg = (sum(prior_vals) / len(prior_vals)) if prior_vals else None
-
-        change = 0
-        percent = 0
-
-        if prior_avg is not None and prior_avg != 0:
-            change = current_avg - prior_avg
-            percent = (change / prior_avg) * 100
-
-        return {
-            "name": name,
-            "iso": name,
-            "hub": hub,
-            "unit": "$/MWh",
-            "price": round(current_avg, 2),
-            "change": round(change, 2),
-            "percent": round(percent, 2),
-            "status": "ok"
-        }
-
-    markets = [
-        compute(iso, "ISO-NE", "Internal Hub"),
-        compute(miso, "MISO", "Illinois Hub"),
-        compute(ercot, "ERCOT", "HB North")
-    ]
-
-    return {
-        "as_of": datetime.now().isoformat(),
-        "aggregation": "MTD average vs Prior Month average",
-        "markets": markets
-    }
+    return _build_electric_payload(
+        iso,
+        miso,
+        ercot,
+        "MTD average vs Prior Month average"
+    )
 
 def electric_background_worker():
     # Refresh electric data in the background so the endpoint can usually return
     # immediately without blocking on three external market fetches.
     while True:
         try:
+            ELECTRIC_CACHE["refreshing"] = True
             ELECTRIC_CACHE["data"] = build_electric()
             ELECTRIC_CACHE["last_update"] = datetime.now()
             print("Electric cache refreshed.")
         except Exception as e:
             print("Electric refresh error:", e)
+        finally:
+            ELECTRIC_CACHE["refreshing"] = False
         time.sleep(600)
 
 @app.on_event("startup")
@@ -1045,18 +1074,22 @@ def start_electric_background():
 
 @app.get("/electric")
 def get_electric():
-    # Safety net: if the background worker has not refreshed recently, rebuild
-    # on demand instead of serving stale month data forever.
+    # Return the saved runtime snapshot immediately so the page stays responsive
+    # even while the background worker is still backfilling recent days.
     now = datetime.now()
+    saved_payload = _read_saved_electric_payload()
 
     if (
         ELECTRIC_CACHE["data"] is None or
         ELECTRIC_CACHE["last_update"] is None or
         (now - ELECTRIC_CACHE["last_update"]).total_seconds() > 3600
     ):
-        ELECTRIC_CACHE["data"] = build_electric()
-        ELECTRIC_CACHE["last_update"] = now
-    return ELECTRIC_CACHE["data"]
+        if ELECTRIC_CACHE["data"] is not None:
+            return ELECTRIC_CACHE["data"]
+        if _has_any_electric_market(saved_payload):
+            return saved_payload
+
+    return ELECTRIC_CACHE["data"] or saved_payload
 
 
 # =========================================================
