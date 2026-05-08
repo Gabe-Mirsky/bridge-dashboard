@@ -12,11 +12,20 @@ Assume the human maintainer using this repo:
 - is an Oracle Cloud Identity Domain Administrator in the relevant Oracle account
 - has the SSH private key needed to log into the Oracle VM
 
+Current teammate access setup:
+
+- coworkers who were added to the OCI group `BridgeDashOps` should be able to open Oracle Cloud Shell
+- those coworkers also have GitHub access to this repo
+- the current shared SSH private key filename is `ssh-key-2026-03-06.key`
+- that key was distributed from Gabe's email
+- from Cloud Shell, the expected VM login pattern is `chmod 600 ~/ssh-key-2026-03-06.key` followed by `ssh -i ~/ssh-key-2026-03-06.key ubuntu@132.145.208.19`
+
 Important access nuance:
 
 - GitHub access controls code changes
 - Oracle access plus the SSH key controls server-level fixes
 - domain and DNS access may be separate from Oracle and may be managed elsewhere
+- Cloud Shell home directories are per-user, so coworkers will not automatically see Gabe's Cloud Shell files and should clone the repo themselves if they need a shell-side working copy
 
 Do not assume domain registrar access unless the human confirms it.
 
@@ -483,6 +492,15 @@ Useful Oracle-side checks typically include:
 - `sudo systemctl status bridge-dashboard --no-pager`
 - `sudo systemctl restart bridge-dashboard`
 - `sudo journalctl -u bridge-dashboard -n 200 --no-pager`
+
+If a coworker is asking for help and the issue appears Oracle-side, the safe fallback guidance is:
+
+1. confirm they are in the OCI group `BridgeDashOps`
+2. have them open Oracle Cloud Shell rather than trying to SSH from a machine that may not have the key
+3. have them upload or access `ssh-key-2026-03-06.key` in Cloud Shell
+4. have them run `chmod 600 ~/ssh-key-2026-03-06.key`
+5. have them run `ssh -i ~/ssh-key-2026-03-06.key ubuntu@132.145.208.19`
+6. if they need the repo inside their own Cloud Shell home directory, have them clone `https://github.com/Gabe-Mirsky/bridge-dashboard.git`
 
 ## Suggested cleanup opportunities
 
