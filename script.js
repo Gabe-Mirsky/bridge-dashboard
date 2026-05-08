@@ -1522,6 +1522,39 @@ function simplifyForecast(value, maxLength = 60) {
   return truncateSummary(compactForecastCopy(simplified), maxLength);
 }
 
+function splitForecastIntoSentences(value) {
+  const text = String(value ?? "").trim();
+  if (!text) return [];
+
+  const matches = text.match(/[^.!?]+[.!?]?/g) ?? [];
+  return matches.map(part => part.trim()).filter(Boolean);
+}
+
+function fitHartfordCurrentDetail(container = document) {
+  const details = container.querySelectorAll(".weather-hartford-current-detail[data-full-text]");
+
+  details.forEach(detailEl => {
+    const fullText = String(detailEl.dataset.fullText ?? "").trim();
+    if (!fullText) return;
+
+    detailEl.textContent = fullText;
+
+    if (detailEl.scrollHeight <= detailEl.clientHeight + 1) {
+      return;
+    }
+
+    const sentences = splitForecastIntoSentences(fullText);
+    if (sentences.length <= 1) {
+      return;
+    }
+
+    while (sentences.length > 1 && detailEl.scrollHeight > detailEl.clientHeight + 1) {
+      sentences.pop();
+      detailEl.textContent = sentences.join(" ").trim();
+    }
+  });
+}
+
 function legacyWeatherIcon(shortForecast) {
   const forecast = String(shortForecast ?? "").toLowerCase();
 
@@ -1668,16 +1701,13 @@ function renderHartfordWeatherView(data, mode = "default") {
     current.short_forecast,
     mode === "condensed" ? 22 : mode === "compact" ? 30 : 44
   );
-  const currentDetail = truncateSummary(
-    current.detail,
-    mode === "condensed" ? 56 : mode === "compact" ? 96 : 180
-  );
+  const currentDetail = compactForecastCopy(current.detail ?? "");
   const miniSummaryLimit = mode === "condensed" ? 16 : mode === "compact" ? 20 : 24;
   const extendedPeriods = periods.slice(1, 9);
   const spaciousToday =
     mode === "default" &&
     currentSummary.length <= 18 &&
-    currentDetail.length <= 80;
+    currentDetail.length <= 110;
 
   return `
     <div class="weather-view weather-hartford-layout${modeClass}">
@@ -1689,7 +1719,7 @@ function renderHartfordWeatherView(data, mode = "default") {
           <div class="weather-mini-icon weather-mini-icon-${escapeHtml(currentIcon.className)}" aria-label="${escapeHtml(currentIcon.label)}" title="${escapeHtml(currentIcon.label)}">${escapeHtml(currentIcon.symbol)}</div>
           <div class="weather-hartford-current-summary">${escapeHtml(currentSummary)}</div>
         </div>
-        <div class="weather-hartford-current-detail">${escapeHtml(currentDetail)}</div>
+        <div class="weather-hartford-current-detail" data-full-text="${escapeHtml(currentDetail)}" title="${escapeHtml(currentDetail)}">${escapeHtml(currentDetail)}</div>
       </div>
       <div class="weather-city-panel">
         <div class="weather-panel-title">Hartford Extended</div>
@@ -1775,6 +1805,7 @@ function renderQ4View() {
   weatherShell.classList.add("active");
   label.textContent = view.label;
   stage.innerHTML = buildWeatherViewHtml(view.key, weatherDashboardData);
+  requestAnimationFrame(() => fitHartfordCurrentDetail(stage));
 }
 
 async function updateWeatherDashboard() {

@@ -1083,10 +1083,9 @@ body {
 }
 
 .weather-hartford-current-detail {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 4;
-  line-clamp: 4;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: block;
   white-space: normal;
   overflow-wrap: anywhere;
 }
@@ -1116,8 +1115,6 @@ body {
 
 .weather-hartford-today--spacious .weather-hartford-current-detail {
   font-size: clamp(14px, 1.08vw, 17px);
-  -webkit-line-clamp: 6;
-  line-clamp: 6;
 }
 
 .weather-mini-grid {
