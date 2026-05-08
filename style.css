@@ -1022,8 +1022,10 @@ body {
   color: rgba(242,242,242,0.72);
   line-height: 1.15;
   min-width: 0;
+  white-space: normal;
   overflow: hidden;
   overflow-wrap: anywhere;
+  text-wrap: pretty;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -1189,8 +1191,8 @@ body {
 }
 
 .weather-view--compact .weather-day-summary {
-  -webkit-line-clamp: 1;
-  line-clamp: 1;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 .weather-view--compact .weather-hartford-current-temp {

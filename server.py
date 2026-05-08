@@ -365,9 +365,9 @@ ELECTRIC_CACHE = {
     "last_update": None
 }
 
-ISO_FILE = "isone_history.json"
-MISO_FILE = "miso_history.json"
-ERCOT_FILE = "ercot_history.json"
+ISO_FILE = BASE_DIR / "isone_history.json"
+MISO_FILE = BASE_DIR / "miso_history.json"
+ERCOT_FILE = BASE_DIR / "ercot_history.json"
 ELECTRIC_DEBUG = True
 
 # ---------------------------------------------------------
@@ -376,10 +376,11 @@ ELECTRIC_DEBUG = True
 
 def _load_json(file):
     """Read a JSON file defensively and fall back to an empty object."""
-    if not os.path.exists(file):
+    path = Path(file)
+    if not path.exists():
         return {}
     try:
-        with open(file, "r", encoding="utf-8") as f:
+        with path.open("r", encoding="utf-8") as f:
             raw = f.read().strip()
             if not raw:
                 return {}
@@ -389,8 +390,10 @@ def _load_json(file):
 
 def _save_json(file, data):
     """Persist JSON with stable formatting so history files stay diff-friendly."""
-    with open(file, "w", encoding="utf-8") as f:
+    path = Path(file)
+    with path.open("w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
+        f.write("\n")
 
 # ---------------------------------------------------------
 # MONTH HELPERS
@@ -414,17 +417,46 @@ def _empty_monthly_history(name):
     current_start = _current_month_start()
     prior_start = _prior_month_start()
 
-    current_month = _month_str(current_start)
+    return _build_two_month_history(
+        name,
+        prior_start,
+        current_start,
+        {}
+    )
+
+def _build_two_month_history(name, prior_start, current_start, data):
+    # Keep the on-disk debug files intentionally easy to inspect: one object,
+    # one rolling two-month window, plus a few summary fields at the top.
     prior_month = _month_str(prior_start)
+    current_month = _month_str(current_start)
+
+    raw_prior_data = data.get(prior_month, {}) if isinstance(data, dict) else {}
+    raw_current_data = data.get(current_month, {}) if isinstance(data, dict) else {}
+
+    prior_data = raw_prior_data if isinstance(raw_prior_data, dict) else {}
+    current_data = raw_current_data if isinstance(raw_current_data, dict) else {}
+
+    month_data = {
+        prior_month: prior_data,
+        current_month: current_data
+    }
+
+    all_days = sorted(
+        day_key
+        for days in month_data.values()
+        for day_key in days.keys()
+    )
 
     return {
         "name": name,
+        "file_role": "electric-history-debug",
         "current_month": current_month,
         "prior_month": prior_month,
-        "data": {
-            prior_month: {},
-            current_month: {}
-        }
+        "window_start": prior_start.isoformat(),
+        "window_end": date.today().isoformat(),
+        "latest_day": all_days[-1] if all_days else None,
+        "day_count": len(all_days),
+        "data": month_data
     }
 
 def _load_or_reset_two_month_history(file, name):
@@ -438,31 +470,19 @@ def _load_or_reset_two_month_history(file, name):
     current_start = _current_month_start()
     prior_start = _prior_month_start()
 
-    current_month = _month_str(current_start)
-    prior_month = _month_str(prior_start)
-
     old_data = history.get("data", {})
     if not isinstance(old_data, dict):
         old_data = {}
 
-    prior_data = old_data.get(prior_month, {})
-    current_data = old_data.get(current_month, {})
+    current_month = _month_str(current_start)
+    prior_month = _month_str(prior_start)
 
-    if not isinstance(prior_data, dict):
-        prior_data = {}
-
-    if not isinstance(current_data, dict):
-        current_data = {}
-
-    new_history = {
-        "name": name,
-        "current_month": current_month,
-        "prior_month": prior_month,
-        "data": {
-            prior_month: prior_data,
-            current_month: current_data
-        }
-    }
+    new_history = _build_two_month_history(
+        name,
+        prior_start,
+        current_start,
+        old_data
+    )
 
     if history != new_history:
         old_current = history.get("current_month") if isinstance(history, dict) else None
@@ -624,6 +644,8 @@ def update_iso_history():
     history = _load_or_reset_two_month_history(ISO_FILE, "ISONE")
     data = history["data"]
     updated = False
+    current_start = _current_month_start()
+    prior_start = _prior_month_start()
 
     for month_key, start_date, end_date in _month_ranges_to_fill():
         if month_key not in data or not isinstance(data[month_key], dict):
@@ -643,13 +665,13 @@ def update_iso_history():
             d += timedelta(days=1)
 
     if updated:
-        history["data"] = data
+        history = _build_two_month_history("ISONE", prior_start, current_start, data)
         _save_json(ISO_FILE, history)
         _electric_debug(
             f"ISONE history saved with months {history['prior_month']} and {history['current_month']}"
         )
 
-    return history
+    return _build_two_month_history("ISONE", prior_start, current_start, data)
 
 # =========================================================
 # MISO — ILLINOIS HUB
@@ -727,6 +749,8 @@ def update_miso_history():
     history = _load_or_reset_two_month_history(MISO_FILE, "MISO")
     data = history["data"]
     updated = False
+    current_start = _current_month_start()
+    prior_start = _prior_month_start()
 
     for month_key, start_date, end_date in _month_ranges_to_fill():
         if month_key not in data or not isinstance(data[month_key], dict):
@@ -746,13 +770,13 @@ def update_miso_history():
             d += timedelta(days=1)
 
     if updated:
-        history["data"] = data
+        history = _build_two_month_history("MISO", prior_start, current_start, data)
         _save_json(MISO_FILE, history)
         _electric_debug(
             f"MISO history saved with months {history['prior_month']} and {history['current_month']}"
         )
 
-    return history
+    return _build_two_month_history("MISO", prior_start, current_start, data)
 
 # =========================================================
 # ERCOT — FAST VERSION
@@ -852,6 +876,8 @@ def update_ercot_history():
     data = history["data"]
 
     updated = False
+    current_start = _current_month_start()
+    prior_start = _prior_month_start()
 
     for month_key, start_date, end_date in _month_ranges_to_fill():
 
@@ -878,13 +904,13 @@ def update_ercot_history():
             d += timedelta(days=1)
 
     if updated:
-        history["data"] = data
+        history = _build_two_month_history("ERCOT", prior_start, current_start, data)
         _save_json(ERCOT_FILE, history)
         _electric_debug(
             f"ERCOT history saved with months {history['prior_month']} and {history['current_month']}"
         )
 
-    return history
+    return _build_two_month_history("ERCOT", prior_start, current_start, data)
 # =========================================================
 # BUILD ELECTRIC DATA
 # =========================================================
@@ -996,7 +1022,7 @@ def get_electric():
     if (
         ELECTRIC_CACHE["data"] is None or
         ELECTRIC_CACHE["last_update"] is None or
-        (now - ELECTRIC_CACHE["last_update"]).seconds > 3600
+        (now - ELECTRIC_CACHE["last_update"]).total_seconds() > 3600
     ):
         ELECTRIC_CACHE["data"] = build_electric()
         ELECTRIC_CACHE["last_update"] = now

@@ -1454,6 +1454,7 @@ function truncateSummary(value, maxLength = 60) {
 
 function compactForecastCopy(value) {
   return String(value ?? "")
+    .replace(/\bIsolated Rain Showers\b/gi, "Slight Rain Chance")
     .replace(/\bSlight Chance Rain Showers\b/gi, "Slight Rain Chance")
     .replace(/\bChance Rain Showers\b/gi, "Chance Rain")
     .replace(/\bChance Showers And Thunderstorms\b/gi, "Showers & Storms")
@@ -1469,10 +1470,35 @@ function compactForecastCopy(value) {
     .trim();
 }
 
+function trimToLeadingForecastIdea(value) {
+  const text = compactForecastCopy(value);
+  if (!text) return "";
+
+  const leadingConditions = [
+    "Mostly Sunny",
+    "Partly Sunny",
+    "Sunny",
+    "Mostly Clear",
+    "Clear",
+    "Partly Cloudy",
+    "Mostly Cloudy",
+    "Cloudy"
+  ];
+
+  for (const phrase of leadingConditions) {
+    const startsWithPhrase = text.toLowerCase().startsWith(phrase.toLowerCase());
+    if (startsWithPhrase && text.length > phrase.length) {
+      return phrase;
+    }
+  }
+
+  return text;
+}
+
 function simplifyForecast(value, maxLength = 60) {
   // Dashboards read better with the leading weather idea only: "Partly Sunny"
   // is clearer than a cut-off phrase like "Partly Sunny then Slight Ch..."
-  const text = compactForecastCopy(value);
+  const text = trimToLeadingForecastIdea(value);
   if (!text) return "";
 
   const splitPatterns = [
@@ -1612,7 +1638,7 @@ function renderRegionalWeatherView(data, mode = "default") {
                 <div class="weather-day-name">${escapeHtml(day.name)}</div>
                 <div class="weather-day-temp">${escapeHtml(day.temperature_display)}</div>
                 <div class="weather-day-icon weather-mini-icon weather-mini-icon-${escapeHtml(icon.className)}" aria-label="${escapeHtml(icon.label)}" title="${escapeHtml(icon.label)}">${escapeHtml(icon.symbol)}</div>
-                <div class="weather-day-summary">${escapeHtml(simplifyForecast(day.summary, summaryLimit))}</div>
+                <div class="weather-day-summary" title="${escapeHtml(day.summary ?? "")}">${escapeHtml(simplifyForecast(day.summary, summaryLimit))}</div>
               </div>
             `;
             }).join("")}
